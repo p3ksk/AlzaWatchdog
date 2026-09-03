@@ -1,0 +1,90 @@
+dialog {
+  border: 2px solid var(--amber);
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0;
+  width: min(38rem, calc(100vw - 2rem));
+  box-shadow: 6px 6px 0 var(--rule);
+
+  &::backdrop {
+    background: rgb(0 0 0 / 0.6);
+  }
+}
+
+.body {
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--amber);
+}
+
+h3 {
+  margin: 0 0 -0.4rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.explain {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+hr {
+  border: 0;
+  border-top: 2px solid var(--rule);
+}
+
+input[type='file'] {
+  font-size: 0.78rem;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 0.6rem 0.7rem;
+  border: 2px solid var(--rule-strong);
+  border-radius: 0;
+  background: var(--panel-sunken);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.76rem;
+
+  &:focus {
+    outline: none;
+    border-color: var(--amber);
+    box-shadow: 0 0 0 2px var(--glow);
+  }
+}
+
+.status {
+  margin: 0;
+  font-size: 0.78rem;
+  min-height: 1.2em;
+
+  .error {
+    color: var(--red);
+  }
+
+  .ok {
+    color: var(--green);
+  }
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+}

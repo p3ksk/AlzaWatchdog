@@ -1,0 +1,301 @@
+.title {
+  margin: 0 0 1.25rem;
+  font-size: 1.05rem;
+  color: var(--amber);
+}
+
+section {
+  margin-bottom: 2rem;
+
+  h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin: 0 0 0.7rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--rule);
+    font-size: 0.82rem;
+    color: var(--ink-dim);
+  }
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 2rem;
+
+  div {
+    border: 2px solid var(--rule-strong);
+    background: var(--panel);
+    padding: 0.5rem 0.7rem;
+  }
+
+  dt {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  dd {
+    margin: 0.15rem 0 0;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--amber);
+
+    &.bad {
+      color: var(--red);
+    }
+  }
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.8rem;
+}
+
+/* A styled label standing in for the browser's file input, which cannot be made
+   to match the rest of the chrome. */
+.file {
+  position: relative;
+  display: inline-block;
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  span {
+    display: inline-block;
+    padding: 0.5rem 0.85rem;
+    border: 2px solid var(--rule-strong);
+    background: var(--panel);
+    box-shadow: 3px 3px 0 var(--rule);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  &:hover span {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+}
+
+.hint {
+  flex: 1 1 18rem;
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+}
+
+.result {
+  margin: 0.8rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border: 2px solid var(--green);
+  color: var(--green);
+  font-size: 0.78rem;
+
+  .warn {
+    color: var(--ink-dim);
+    margin-left: 0.4rem;
+  }
+}
+
+.notes {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+}
+
+/* Wide tables scroll inside their own box rather than pushing the page sideways. */
+.scroll {
+  overflow-x: auto;
+  border: 2px solid var(--rule);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+
+  th {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    background: var(--panel-sunken);
+    border-bottom: 2px solid var(--rule);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+
+  tr.selected td {
+    background: var(--panel-sunken);
+  }
+
+  .num {
+    text-align: right;
+  }
+}
+
+code {
+  font-size: 0.92em;
+  color: var(--amber);
+}
+
+.tag {
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.bare {
+  padding: 0.1rem 0.35rem;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  font-size: 0.68rem;
+  color: var(--ink-dim);
+  text-decoration: underline;
+
+  &:hover:not(:disabled) {
+    color: var(--amber);
+  }
+
+  &:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.item {
+  border: 2px solid var(--rule);
+  background: var(--panel);
+  padding: 0.6rem 0.8rem;
+
+  &.inactive {
+    opacity: 0.7;
+  }
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.ident {
+  flex: 1 1 20rem;
+  min-width: 0;
+
+  a {
+    font-weight: 700;
+    font-size: 0.86rem;
+    color: var(--ink);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+
+    &:hover {
+      color: var(--amber);
+      text-decoration: underline;
+    }
+  }
+}
+
+.meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+
+.prices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+
+  .p {
+    font-weight: 700;
+  }
+
+  .alt {
+    font-size: 0.7rem;
+    color: var(--green);
+  }
+}
+
+.snapshots {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 2px solid var(--rule);
+  display: grid;
+  gap: 0.7rem;
+}
+
+.muted {
+  color: var(--ink-dim);
+}
+
+.bad {
+  color: var(--red);
+}
+
+.banner {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border: 2px solid var(--red);
+  color: var(--red);
+  font-size: 0.78rem;
+}
+
+.empty {
+  border: 2px dashed var(--rule-strong);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+
+  h2 {
+    display: block;
+    border: 0;
+    margin: 0 0 0.6rem;
+    font-size: 1rem;
+    color: var(--amber);
+  }
+
+  p {
+    margin: 0 auto;
+    max-width: 52ch;
+    color: var(--ink-dim);
+    font-size: 0.82rem;
+  }
+}

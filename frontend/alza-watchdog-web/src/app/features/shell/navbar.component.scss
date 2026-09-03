@@ -1,0 +1,210 @@
+.bar {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 1.25rem;
+  border: 2px solid var(--rule-strong);
+  background: var(--panel);
+  box-shadow: 4px 4px 0 var(--rule);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+}
+
+.brand .mark {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+  text-shadow: 0 0 12px var(--glow);
+  white-space: nowrap;
+}
+
+.star {
+  opacity: 0.7;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+
+  button {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+}
+
+/* The list tab strip sits on its own row below the brand/actions. */
+.lists {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.55rem 0 0;
+  border-top: 2px solid var(--rule);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.6rem;
+  border: 2px solid var(--rule);
+  background: var(--panel-sunken);
+  color: var(--ink-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow: none;
+
+  &:hover {
+    color: var(--amber);
+    border-color: var(--amber);
+  }
+
+  &.active {
+    background: var(--panel);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  &.add {
+    border-style: dashed;
+    background: none;
+  }
+}
+
+.count {
+  padding: 0 0.28rem;
+  border: 1px solid currentColor;
+  font-size: 0.64rem;
+  opacity: 0.85;
+}
+
+/* The overflow menu holding Admin, Backup, and Key. */
+.menu {
+  position: relative;
+}
+
+.menu summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.5rem 0.85rem;
+  border: 2px solid var(--rule-strong);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 3px 3px 0 var(--rule);
+
+  &:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.3rem);
+  z-index: 10;
+  min-width: 9rem;
+  padding: 0.3rem;
+  display: grid;
+  gap: 0.2rem;
+  border: 2px solid var(--rule-strong);
+  background: var(--panel);
+  box-shadow: 4px 4px 0 var(--rule);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.55rem;
+  border: 2px solid transparent;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--amber);
+    border-color: var(--amber);
+  }
+
+  &.on .menu-check {
+    color: var(--green);
+    border-color: var(--green);
+  }
+}
+
+.menu-check {
+  display: inline-grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--rule-strong);
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+
+.inline {
+  display: flex;
+  gap: 0.3rem;
+
+  input {
+    padding: 0.22rem 0.45rem;
+    font-size: 0.75rem;
+    width: 9rem;
+  }
+
+  button {
+    font-size: 0.68rem;
+    padding: 0.22rem 0.5rem;
+    box-shadow: none;
+  }
+}
+
+.error {
+  margin: -0.75rem 0 1rem;
+  color: var(--red);
+  font-size: 0.76rem;
+}
+
+@media (max-width: 700px) {
+  .top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions {
+    margin-left: 0;
+  }
+}

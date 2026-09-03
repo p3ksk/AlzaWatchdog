@@ -1,0 +1,27 @@
+services:
+  watchdog-api:
+    build:
+      context: .
+      dockerfile: backend/AlzaWatchdog.Api/Dockerfile
+    environment:
+      # The web container proxies /api on its own origin, so CORS is not exercised
+      # here. Listed for anyone pointing `ng serve` at a containerised API.
+      Cors__Origins__0: http://localhost:4200
+      Watchdog__CheckInterval: "06:00:00"
+      Admin__Keys__0: 43fa4fc85fcd400490ad43bb47099005
+    volumes:
+      - watchdog-data:/data
+    restart: unless-stopped
+
+  watchdog-web:
+    build:
+      context: .
+      dockerfile: frontend/alza-watchdog-web/Dockerfile
+    ports:
+      - "8081:80"
+    depends_on:
+      - watchdog-api
+    restart: unless-stopped
+
+volumes:
+  watchdog-data:

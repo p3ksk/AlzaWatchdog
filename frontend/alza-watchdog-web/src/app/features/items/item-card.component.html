@@ -1,0 +1,106 @@
+@let it = item();
+
+<article class="card" [class.inactive]="!it.isActive">
+  <div class="top">
+    @if (it.imageDataUri) {
+      <img class="thumb" [src]="it.imageDataUri" [alt]="" loading="lazy" decoding="async" />
+    } @else {
+      <div class="thumb placeholder" aria-hidden="true">?</div>
+    }
+
+    <div class="identity">
+      <a class="name" [href]="it.url" target="_blank" rel="noopener noreferrer">
+        {{ it.name ?? it.url }}
+      </a>
+
+      <p class="meta">
+        <span
+          class="badge"
+          [class.ok]="it.availability === 'InStock'"
+          [class.bad]="isOutOfStock()"
+        >
+          {{ availabilityLabel() }}
+        </span>
+        <span [title]="exact(it.lastCheckedAt)">Checked {{ checkedLabel() }}</span>
+      </p>
+    </div>
+
+    <div class="pricing">
+      <p class="price">{{ priceLabel() }}</p>
+      <p class="deltas">
+        @if (changeLabel(); as change) {
+          <span class="change" [class.down]="it.priceChange! < 0" [class.up]="it.priceChange! > 0">
+            {{ it.priceChange! < 0 ? '▼' : '▲' }} {{ change }}
+          </span>
+        }
+        @if (it.isAtLowest) {
+          <span class="badge best" title="Matches the cheapest price recorded">★ Cheapest yet</span>
+        }
+      </p>
+
+      @if (offers().length > 0) {
+        <ul class="offers">
+          @for (offer of offers(); track offer.label) {
+            <li>
+              <span class="offer-label">{{ offer.label }}</span>
+              <span class="offer-price">{{ offer.value }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+
+  @if (it.history.length > 1 && !expanded()) {
+    <div class="spark">
+      <app-price-chart [history]="it.history" [currency]="it.currency" />
+      @if (rangeLabel(); as range) {
+        <p class="range">{{ range }}</p>
+      }
+    </div>
+  }
+
+  @if (!it.isActive) {
+    <p class="alert">
+      <strong>Paused after repeated failures.</strong>
+      @if (it.lastError) {
+        {{ it.lastError }}
+      }
+    </p>
+  } @else if (it.lastError) {
+    <p class="alert subtle">Last check failed: {{ it.lastError }}</p>
+  }
+  @if (note()) {
+    <p class="alert" role="status">{{ note() }}</p>
+  }
+
+  <div class="actions">
+    @if (it.history.length > 1) {
+      <button type="button" (click)="toggle()" [attr.aria-expanded]="expanded()">
+        {{ expanded() ? 'Hide chart' : 'Chart' }}
+      </button>
+    }
+
+    @if (!it.isActive) {
+      <button type="button" (click)="resumeRequested.emit()" [disabled]="busy()">
+        {{ busy() ? 'Working…' : 'Resume watching' }}
+      </button>
+    }
+
+    @if (confirmingRemove()) {
+      <span class="confirm" role="group" aria-label="Confirm removal">
+        <span>Delete it and its history?</span>
+        <button type="button" class="danger" (click)="confirmRemove()">Yes, remove</button>
+        <button type="button" (click)="cancelRemove()">Keep</button>
+      </span>
+    } @else {
+      <button type="button" (click)="askRemove()" [disabled]="busy()">Remove</button>
+    }
+  </div>
+
+  @if (expanded()) {
+    <div class="history">
+      <app-price-chart [history]="it.history" [currency]="it.currency" [detailed]="true" />
+    </div>
+  }
+</article>

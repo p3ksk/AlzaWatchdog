@@ -1,0 +1,59 @@
+<dialog #dialog (close)="reset()" (click)="closeOnBackdrop($event)">
+  <div class="body">
+    <h2>Backup</h2>
+
+    <p class="explain">
+      Download everything you are watching — products, prices, and history — as a
+      JSON file you can keep or restore later.
+    </p>
+
+    <div class="row">
+      <button type="button" class="primary" (click)="exportProducts()" [disabled]="exporting()">
+        {{ exporting() ? 'Exporting…' : 'Export products' }}
+      </button>
+    </div>
+
+    <hr />
+
+    <h3>Restore from a file</h3>
+    <p class="explain">
+      Paste a previous backup below, or choose a JSON file. Restoring adds missing
+      products and leaves existing ones untouched.
+    </p>
+
+    <input
+      type="file"
+      accept="application/json,.json"
+      (change)="importSelectedFile($event)"
+    />
+    <textarea
+      [value]="importText()"
+      (input)="importText.set($any($event.target).value)"
+      placeholder="Paste backup JSON here…"
+      rows="8"
+    ></textarea>
+
+    <div class="row">
+      <button type="button" class="primary" (click)="runImport()" [disabled]="importing() || !importText().trim()">
+        {{ importing() ? 'Importing…' : 'Import' }}
+      </button>
+    </div>
+
+    <p class="status" aria-live="polite">
+      @if (importError(); as message) {
+        <span class="error">! {{ message }}</span>
+      }
+      @if (importResult(); as result) {
+        <span class="ok">
+          Imported {{ result!.itemsImported }} product(s),
+          {{ result!.snapshotsImported }} snapshot(s);
+          skipped {{ result!.itemsSkipped }}.
+        </span>
+      }
+    </p>
+
+    <div class="foot">
+      <button type="button" (click)="close()">Done</button>
+    </div>
+  </div>
+</dialog>

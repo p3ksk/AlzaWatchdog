@@ -1,0 +1,48 @@
+<dialog #dialog (close)="reset()" (click)="closeOnBackdrop($event)">
+  <div class="body">
+    <h2>Your key</h2>
+
+    <p class="warn">
+      ⚠ This link is the only way back to your lists. Nothing is stored in this
+      browser — lose the link and the lists are gone. Bookmark it now.
+    </p>
+
+    <div class="value">
+      <code>{{ accountUrl() ?? '—' }}</code>
+      <button type="button" (click)="copy()" [disabled]="!accountUrl()">
+        {{ copied() ? 'Copied' : 'Copy' }}
+      </button>
+    </div>
+
+    <p class="explain">
+      Anyone with this link can see and edit every list on it, so share it only
+      with people you would give that to.
+    </p>
+
+    <form class="adopt" (ngSubmit)="openAccount()">
+      <label for="adopt-key">Open a different account</label>
+      <div class="value">
+        <input
+          id="adopt-key"
+          name="candidate"
+          [ngModel]="candidate()"
+          (ngModelChange)="candidate.set($event)"
+          placeholder="paste a key or a full link"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="submit" [disabled]="!candidate().trim()">Open</button>
+      </div>
+    </form>
+
+    <p class="status" aria-live="polite">
+      @if (error(); as message) {
+        <span class="error">! {{ message }}</span>
+      }
+    </p>
+
+    <div class="foot">
+      <button type="button" (click)="close()">Done</button>
+    </div>
+  </div>
+</dialog>

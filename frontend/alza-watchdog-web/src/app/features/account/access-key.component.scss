@@ -1,0 +1,106 @@
+dialog {
+  border: 2px solid var(--amber);
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0;
+  width: min(38rem, calc(100vw - 2rem));
+  box-shadow: 6px 6px 0 var(--rule);
+
+  &::backdrop {
+    background: rgb(0 0 0 / 0.6);
+  }
+}
+
+.body {
+  padding: 1.25rem;
+  display: grid;
+  gap: 1.1rem;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--amber);
+}
+
+h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.75rem;
+  color: var(--ink);
+}
+
+.warn {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid var(--amber);
+  background: var(--panel-sunken);
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.explain {
+  margin: 0 0 0.5rem;
+  color: var(--ink-dim);
+  font-size: 0.76rem;
+
+  strong {
+    color: var(--ink);
+  }
+}
+
+.value {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+
+  code {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
+    border: 2px solid var(--rule);
+    background: var(--panel-sunken);
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+
+  input {
+    flex: 1 1 auto;
+    font-size: 0.8rem;
+  }
+}
+
+.adopt label {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 0.35rem;
+}
+
+.adopt {
+  padding-top: 0.9rem;
+  border-top: 2px solid var(--rule);
+}
+
+.status {
+  margin: 0;
+  font-size: 0.78rem;
+  min-height: 1.2em;
+
+  .error {
+    color: var(--red);
+  }
+
+  .ok {
+    color: var(--green);
+  }
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+}

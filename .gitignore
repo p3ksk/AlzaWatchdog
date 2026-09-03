@@ -1,0 +1,45 @@
+# --- .NET -------------------------------------------------------------------
+bin/
+obj/
+publish/
+*.user
+
+# Test and coverage output. `dotnet test` writes TestResults/ next to the test
+# project, and coverlet can drop a report in whatever directory it was run from.
+TestResults/
+*.coverage
+coverage*.xml
+
+# --- SQLite -----------------------------------------------------------------
+# The database plus every journal SQLite may leave beside it: -wal/-shm in WAL
+# mode, -journal in the default rollback mode.
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# --- Node / Angular ---------------------------------------------------------
+node_modules/
+dist/
+.angular/
+
+# --- Local configuration ----------------------------------------------------
+# appsettings.json is committed and must stay free of real values. An admin key
+# is a credential and a connection string carries a password, so set those as
+# environment variables (Admin__Keys__0, ConnectionStrings__Default) rather than
+# editing the committed file.
+.env
+.env.*
+appsettings.Local.json
+appsettings.*.Local.json
+
+# --- Editors and OS ---------------------------------------------------------
+.vs/
+.idea/
+.DS_Store
+*.swp
+*~
+
+# --- Agent and tooling state ------------------------------------------------
+.commandcode/
+.claude/

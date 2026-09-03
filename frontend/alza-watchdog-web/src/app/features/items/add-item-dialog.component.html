@@ -1,0 +1,49 @@
+<dialog #dialog (close)="reset()" (click)="closeOnBackdrop($event)">
+  <form class="body" (ngSubmit)="submit()">
+    <h2>Watch a product</h2>
+    <p class="explain">
+      Adding to <strong>{{ listName() || 'this list' }}</strong>. The watchdog checks it
+      once now, then on its own schedule.
+    </p>
+
+    <label class="sr-only" for="product-url">alza.sk product link</label>
+    <div class="row">
+      <span class="prompt" aria-hidden="true">&gt;</span>
+      <input
+        #field
+        id="product-url"
+        name="url"
+        type="text"
+        inputmode="url"
+        [ngModel]="url()"
+        (ngModelChange)="url.set($event); error.set(null)"
+        placeholder="paste an alza.sk product link"
+        autocomplete="off"
+        spellcheck="false"
+        [disabled]="working()"
+        [attr.aria-invalid]="error() ? 'true' : null"
+        aria-describedby="add-status"
+      />
+      <button type="submit" class="primary" [disabled]="working() || !url().trim()">
+        {{ working() ? 'Checking…' : 'Watch it' }}
+      </button>
+    </div>
+
+    <p id="add-status" class="status" aria-live="polite">
+      @if (error(); as message) {
+        <span class="error">! {{ message }}</span>
+      } @else if (addedName(); as name) {
+        <span class="ok">✓ Added {{ name }}. Paste another, or close.</span>
+      } @else {
+        <span class="dim">
+          e.g.
+          <button type="button" class="link" (click)="useExample()">{{ exampleUrl }}</button>
+        </span>
+      }
+    </p>
+
+    <div class="foot">
+      <button type="button" (click)="close()">Done</button>
+    </div>
+  </form>
+</dialog>

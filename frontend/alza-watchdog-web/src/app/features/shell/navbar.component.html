@@ -1,0 +1,83 @@
+<nav class="bar">
+  <div class="top">
+    <div class="brand">
+      <span class="mark">Alza<span class="star">*</span>Watchdog</span>
+    </div>
+
+    <div class="actions">
+      @if (canAct()) {
+        <button type="button" class="primary" (click)="watchRequested.emit()">+ Watch item</button>
+      }
+
+      <details #menu class="menu">
+        <summary>Menu</summary>
+        <div class="menu-panel">
+          @if (canAct()) {
+            <button
+              type="button"
+              class="menu-item"
+              [class.on]="hasAlzaPlus()"
+              (click)="toggleAlzaPlus(!hasAlzaPlus())"
+            >
+              <span class="menu-check">{{ hasAlzaPlus() ? '✓' : '✕' }}</span>
+              AlzaPlus+
+            </button>
+          }
+          @if (isAdmin()) {
+            <a class="menu-item" [routerLink]="adminLink()" (click)="closeMenu()">Admin</a>
+          }
+          <button type="button" class="menu-item" (click)="backupRequested.emit(); closeMenu()">Backup</button>
+          <button type="button" class="menu-item" (click)="keysRequested.emit(); closeMenu()">Key</button>
+          <button type="button" class="menu-item" (click)="toggleTheme()">
+            {{ isDark() ? 'Light mode' : 'Dark mode' }}
+          </button>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  @if (canAct()) {
+    <ul class="lists" role="tablist" aria-label="Watch lists">
+      @for (list of lists(); track list.id) {
+        <li role="presentation">
+          <a
+            class="tab"
+            role="tab"
+            [class.active]="list.id === activeListId()"
+            [routerLink]="listLink(list.id)"
+            [attr.aria-current]="list.id === activeListId() ? 'page' : null"
+          >
+            {{ list.name }}
+            <span class="count">{{ list.itemCount }}</span>
+          </a>
+        </li>
+      }
+
+      <li role="presentation">
+        @if (creating()) {
+          <form class="inline" (ngSubmit)="create()">
+            <input
+              name="newName"
+              [ngModel]="newName()"
+              (ngModelChange)="newName.set($event)"
+              placeholder="list name"
+              maxlength="80"
+              autocomplete="off"
+              aria-label="New list name"
+            />
+            <button type="submit" class="primary" [disabled]="working() || !newName().trim()">
+              Add
+            </button>
+            <button type="button" (click)="cancelCreate()">Cancel</button>
+          </form>
+        } @else {
+          <button type="button" class="tab add" (click)="startCreate()" title="New list">+ List</button>
+        }
+      </li>
+    </ul>
+  }
+</nav>
+
+@if (error(); as message) {
+  <p class="error" role="alert">! {{ message }}</p>
+}

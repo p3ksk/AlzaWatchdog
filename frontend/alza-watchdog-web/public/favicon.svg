@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Alza Watchdog">
+  <title>Alza Watchdog</title>
+
+  <!-- The tile carries its own contrast, so the mark reads on light and dark
+       browser chrome alike. A prefers-color-scheme swap would be ignored by
+       Chrome inside a favicon anyway. -->
+  <rect width="64" height="64" rx="12" fill="#16110b"/>
+
+  <!-- A blocky terminal "A": axis-aligned strokes with chamfered shoulders, so it
+       keeps the app's CRT character while staying crisp at 16px, where a
+       conventional diagonal A turns to mush. One path, even-odd counter. -->
+  <path fill="#4ade80" fill-rule="evenodd"
+        d="M10 57 V23 L21 12 H43 L54 23 V57 H42 V41 H22 V57 Z
+           M22 25 H42 V34 H22 Z"/>
+</svg>

@@ -1,0 +1,114 @@
+:host {
+  display: block;
+  color: var(--amber);
+}
+
+.frame {
+  position: relative;
+  height: 52px;
+
+  &.detailed {
+    height: 160px;
+    cursor: crosshair;
+  }
+}
+
+svg {
+  display: block;
+  // Smooth curves are the point; never let the renderer snap this to pixels.
+  shape-rendering: geometricPrecision;
+  overflow: visible;
+}
+
+.line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.area {
+  stroke: none;
+}
+
+.dot {
+  fill: currentColor;
+
+  &.current {
+    stroke: var(--panel);
+    stroke-width: 2;
+  }
+
+  &.active {
+    fill: var(--ink);
+    stroke: var(--amber);
+    stroke-width: 2;
+  }
+}
+
+.guide {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.tip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 0.7rem));
+  padding: 0.25rem 0.5rem;
+  border: 2px solid var(--amber);
+  background: var(--panel);
+  white-space: nowrap;
+  pointer-events: none;
+  display: grid;
+  gap: 0.05rem;
+  z-index: 2;
+  box-shadow: 3px 3px 0 var(--rule);
+
+  strong {
+    font-size: 0.85rem;
+    color: var(--ink);
+  }
+
+  span {
+    font-size: 0.7rem;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  // Stay inside the card near the edges, and drop below the point when there is
+  // no room for a tooltip above it.
+  &.flip {
+    transform: translate(calc(-100% + 0.6rem), calc(-100% - 0.7rem));
+  }
+
+  &.below {
+    transform: translate(-50%, 0.7rem);
+  }
+
+  &.below.flip {
+    transform: translate(calc(-100% + 0.6rem), 0.7rem);
+  }
+}
+
+.bounds {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.single {
+  margin: 0;
+  padding-top: 0.9rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}

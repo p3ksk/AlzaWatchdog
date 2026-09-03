@@ -1,0 +1,110 @@
+dialog {
+  border: 2px solid var(--amber);
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0;
+  width: min(40rem, calc(100vw - 2rem));
+  box-shadow: 6px 6px 0 var(--rule);
+
+  &::backdrop {
+    background: rgb(0 0 0 / 0.6);
+  }
+}
+
+.body {
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--amber);
+}
+
+.explain {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+
+  strong {
+    color: var(--ink);
+  }
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+
+  input {
+    flex: 1 1 auto;
+    font-size: 0.92rem;
+  }
+
+  button {
+    white-space: nowrap;
+  }
+}
+
+.prompt {
+  display: grid;
+  place-items: center;
+  padding-inline: 0.3rem;
+  color: var(--amber);
+  font-weight: 700;
+}
+
+.status {
+  margin: 0 0 0 1.4rem;
+  font-size: 0.76rem;
+  min-height: 1.3em;
+
+  .dim {
+    color: var(--ink-dim);
+  }
+
+  .error {
+    color: var(--red);
+  }
+
+  .ok {
+    color: var(--green);
+  }
+}
+
+.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--amber);
+  text-decoration: underline;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: left;
+  box-shadow: none;
+
+  &:active {
+    transform: none;
+  }
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

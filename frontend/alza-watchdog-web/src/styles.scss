@@ -1,0 +1,218 @@
+/* ---------------------------------------------------------------------------
+   Retro terminal styling: amber phosphor on warm ink, or ink on cream paper.
+   Hard 2px rules, offset shadows with no blur, monospace throughout, uppercase
+   letter-spaced labels. The charts deliberately break the rule and render as
+   smooth antialiased vectors — blocky data would be a costume, not a feature.
+   --------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light dark;
+
+  --paper: #f2e7d0;
+  --panel: #fbf4e2;
+  --panel-sunken: #e8dbbf;
+  --ink: #241c12;
+  --ink-dim: #6d6049;
+  --rule: #c3b18d;
+  --rule-strong: #8d7b57;
+  --amber: #1f7a3d;
+  --amber-soft: #35a55c;
+  --green: #1b6b40;
+  --red: #a52a1e;
+  --glow: transparent;
+  --scanline: rgb(60 40 10 / 0.025);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --paper: #16110b;
+    --panel: #1e1810;
+    --panel-sunken: #272016;
+    --ink: #f0dcb8;
+    --ink-dim: #9c8b6f;
+    --rule: #3d3122;
+    --rule-strong: #62513a;
+    --amber: #4ade80;
+    --amber-soft: #86efac;
+    --green: #63e08f;
+    --red: #ff6f61;
+    --glow: rgb(74 222 128 / 0.32);
+    --scanline: rgb(0 0 0 / 0.09);
+  }
+}
+
+:root[data-theme='dark'] {
+  --paper: #16110b;
+  --panel: #1e1810;
+  --panel-sunken: #272016;
+  --ink: #f0dcb8;
+  --ink-dim: #9c8b6f;
+  --rule: #3d3122;
+  --rule-strong: #62513a;
+  --amber: #4ade80;
+  --amber-soft: #86efac;
+  --green: #63e08f;
+  --red: #ff6f61;
+  --glow: rgb(74 222 128 / 0.32);
+  --scanline: rgb(0 0 0 / 0.09);
+}
+
+:root[data-theme='light'] {
+  --paper: #f2e7d0;
+  --panel: #fbf4e2;
+  --panel-sunken: #e8dbbf;
+  --ink: #241c12;
+  --ink-dim: #6d6049;
+  --rule: #c3b18d;
+  --rule-strong: #8d7b57;
+  --amber: #1f7a3d;
+  --amber-soft: #35a55c;
+  --green: #1b6b40;
+  --red: #a52a1e;
+  --glow: transparent;
+  --scanline: rgb(60 40 10 / 0.025);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-monospace, 'JetBrains Mono', 'SFMono-Regular', 'SF Mono', Menlo,
+    Consolas, 'DejaVu Sans Mono', monospace;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Horizontal scanlines, faint enough to read as texture rather than stripes.
+   Purely decorative, so it never intercepts a click. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 2px,
+    var(--scanline) 2px 4px
+  );
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+a {
+  color: var(--amber);
+}
+
+/* --- Controls -------------------------------------------------------------- */
+
+input,
+select {
+  padding: 0.55rem 0.7rem;
+  border: 2px solid var(--rule-strong);
+  border-radius: 0;
+  background: var(--panel-sunken);
+  color: var(--ink);
+  font: inherit;
+  min-width: 0;
+
+  &::placeholder {
+    color: var(--ink-dim);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--amber);
+    box-shadow: 0 0 0 2px var(--glow);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+  }
+}
+
+button {
+  padding: 0.5rem 0.85rem;
+  border: 2px solid var(--rule-strong);
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  // No blur: a hard offset shadow is the whole look.
+  box-shadow: 3px 3px 0 var(--rule);
+  transition: transform 0.06s steps(2), box-shadow 0.06s steps(2);
+
+  &:hover:not(:disabled) {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  // Pressing pushes the button into its own shadow.
+  &:active:not(:disabled) {
+    transform: translate(3px, 3px);
+    box-shadow: 0 0 0 var(--rule);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: 3px 3px 0 var(--rule);
+  }
+
+  &.primary {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: var(--paper);
+
+    &:hover:not(:disabled) {
+      color: var(--paper);
+      background: var(--amber-soft);
+      border-color: var(--amber-soft);
+    }
+  }
+
+  &.danger:hover:not(:disabled) {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  // For icon-ish inline actions that should not carry the full chrome.
+  &.bare {
+    padding: 0.15rem 0.4rem;
+    border-color: transparent;
+    background: none;
+    box-shadow: none;
+
+    &:active:not(:disabled) {
+      transform: none;
+    }
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

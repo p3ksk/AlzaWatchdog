@@ -1,0 +1,18 @@
+<div class="shell">
+  <app-navbar
+    [activeListId]="activeListId()"
+    (watchRequested)="openAdd()"
+    (keysRequested)="openKeys()"
+    (backupRequested)="openBackup()"
+  />
+
+  <app-bookmark-notice />
+
+  <main>
+    <router-outlet />
+  </main>
+
+  <app-add-item-dialog />
+  <app-access-key />
+  <app-backup-dialog />
+</div>

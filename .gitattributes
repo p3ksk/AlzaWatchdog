@@ -1,0 +1,9 @@
+# Pages captured from alza.sk and used as offline test fixtures. Keep them
+# byte-for-byte as fetched: they are recorded evidence of what the site actually
+# served, and letting Git rewrite their line endings on checkout would quietly
+# change the input the parser tests are pinned to.
+backend/AlzaWatchdog.Tests/Fixtures/*.html -text
+
+# Shell scripts run inside Linux containers. A CRLF checkout on Windows would
+# make the interpreter line unusable and the container would fail to start.
+*.sh text eol=lf

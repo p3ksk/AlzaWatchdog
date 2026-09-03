@@ -1,0 +1,131 @@
+@if (lost()) {
+  <div class="empty">
+    <h2>Nothing here</h2>
+    <p>
+      This address does not match any account. Since the link is the only way in,
+      a mistyped or expired one cannot be recovered.
+    </p>
+    <button type="button" class="primary" (click)="startFresh()" [disabled]="starting()">
+      Start a new account
+    </button>
+  </div>
+} @else if (missing()) {
+  <div class="empty">
+    <h2>No such list</h2>
+    <p>This account has no list with that address. It may have been deleted.</p>
+    <button type="button" class="primary" (click)="startFresh()">Start over</button>
+  </div>
+} @else {
+  <div class="listbar">
+    @if (renaming()) {
+      <form class="inline" (ngSubmit)="rename()">
+        <input
+          name="renameValue"
+          [ngModel]="renameValue()"
+          (ngModelChange)="renameValue.set($event)"
+          maxlength="80"
+          autocomplete="off"
+          aria-label="List name"
+        />
+        <button type="submit" class="primary" [disabled]="working() || !renameValue().trim()">Save</button>
+        <button type="button" (click)="cancelRename()">Cancel</button>
+      </form>
+    } @else {
+      <h1 class="title">▌ {{ listName() }}</h1>
+
+      <span class="tools">
+        <button type="button" class="bare" (click)="startRename()">Rename</button>
+        @if (canDelete()) {
+          @if (confirmingDelete()) {
+            <span class="confirm">
+              Delete this list and everything on it?
+              <button type="button" class="danger" (click)="deleteList()" [disabled]="working()">
+                Yes, delete
+              </button>
+              <button type="button" (click)="cancelDelete()">Keep</button>
+            </span>
+          } @else {
+            <button type="button" class="bare" (click)="askDelete()">Delete list</button>
+          }
+        }
+      </span>
+    }
+  </div>
+
+  @if (listError(); as message) {
+    <p class="banner" role="alert">! {{ message }}</p>
+  }
+  @if (loadError(); as error) {
+    <p class="banner" role="alert">
+      <span>! {{ error }}</span>
+      <button type="button" (click)="dismissLoadError()">Dismiss</button>
+    </p>
+  }
+
+  @if (loading() && watchedCount() === 0) {
+    <ul class="skeletons" aria-hidden="true">
+      @for (n of [1, 2, 3]; track n) {
+        <li><div class="skeleton"></div></li>
+      }
+    </ul>
+    <p class="sr-only" role="status">Loading this list</p>
+  } @else if (isEmpty()) {
+    <div class="empty">
+      <h2>Nothing on watch</h2>
+      <p>
+        Use <strong>+ Watch item</strong> above to add an alza.sk product. The watchdog
+        checks it on a schedule and remembers every price change, so you can tell a real
+        deal from a fake one.
+      </p>
+    </div>
+  } @else {
+    <div class="toolbar">
+      <p class="summary" role="status">
+        <strong>{{ watchedCount() }}</strong>
+        {{ watchedCount() === 1 ? 'product' : 'products' }}
+        @if (atLowestCount() > 0) {
+          · <span class="good">{{ atLowestCount() }} at their cheapest</span>
+        }
+        @if (unavailableCount() > 0) {
+          · <span class="bad">{{ unavailableCount() }} unavailable</span>
+        }
+      </p>
+
+      <label class="sort">
+        <span>Sort</span>
+        <select [ngModel]="sort()" (ngModelChange)="sort.set($event)" name="sort">
+          @for (option of sortOptions; track option.key) {
+            <option [value]="option.key">{{ option.label }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (canReorder() && items().length > 1) {
+      <p class="reorder-hint">Drag cards to set your own order.</p>
+    }
+
+    <ul class="items">
+      @for (item of items(); track item.id) {
+        <li
+          [class.dragging]="draggingId() === item.id"
+          [class.drag-over]="dragOverId() === item.id"
+          [draggable]="canReorder()"
+          (dragstart)="onDragStart($event, item.id)"
+          (dragover)="onDragOver($event, item.id)"
+          (dragleave)="onDragLeave($event, item.id)"
+          (drop)="onDrop($event, item.id)"
+          (dragend)="onDragEnd()"
+        >
+          <app-item-card
+            [item]="item"
+            [busy]="isBusy(item.id)"
+            [note]="noteFor(item.id)"
+            (resumeRequested)="resume(item)"
+            (removeRequested)="remove(item)"
+          />
+        </li>
+      }
+    </ul>
+  }
+}

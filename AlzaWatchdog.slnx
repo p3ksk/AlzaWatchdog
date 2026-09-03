@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/AlzaWatchdog.Api/AlzaWatchdog.Api.csproj" />
+    <Project Path="backend/AlzaWatchdog.Tests/AlzaWatchdog.Tests.csproj" />
+  </Folder>
+</Solution>

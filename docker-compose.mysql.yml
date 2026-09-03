@@ -1,0 +1,39 @@
+services:
+  db:
+    image: docker.io/library/mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpw}
+      MYSQL_DATABASE: alzawatchdog
+      MYSQL_USER: watchdog
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-watchpw}
+    volumes:
+      - watchdog-mysql:/var/lib/mysql
+
+  watchdog-api:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: backend/AlzaWatchdog.Api/Dockerfile
+    environment:
+      Database__Provider: MySql
+      # utf8mb4 matters: product names carry Slovak diacritics.
+      ConnectionStrings__Default: "server=db;port=3306;database=alzawatchdog;user=watchdog;password=${MYSQL_PASSWORD:-watchpw};CharSet=utf8mb4"
+      Cors__Origins__0: http://localhost:4200
+      Watchdog__CheckInterval: "06:00:00"
+      #Admin__Keys__0: abcd
+    depends_on:
+      db:
+
+  watchdog-web:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: frontend/alza-watchdog-web/Dockerfile
+    ports:
+      - "8081:80"
+    depends_on:
+      - watchdog-api
+
+volumes:
+  watchdog-mysql:
