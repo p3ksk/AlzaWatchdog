@@ -50,7 +50,10 @@ public class LiveScrapeTests
 
     /// <summary>
     /// Mirrors the transport configured in Program.cs. Keep the two in step —
-    /// notably the pinned TLS version, without which every request returns 403.
+    /// notably the pinned TLS version and the sec-ch-ua/Sec-Fetch header set,
+    /// without which every request returns 403. A client here that is missing what
+    /// the app sends does not test the app: it reproduces a failure the app does
+    /// not have, which is worse than no test at all.
     /// </summary>
     private static HttpClient CreateClient()
     {
@@ -72,9 +75,13 @@ public class LiveScrapeTests
         headers.Add("Accept",
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
         headers.Add("Accept-Language", "sk-SK,sk;q=0.9,en;q=0.8");
+        headers.Add("sec-ch-ua", "\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
+        headers.Add("sec-ch-ua-mobile", "?0");
+        headers.Add("sec-ch-ua-platform", "\"Linux\"");
         headers.Add("Sec-Fetch-Dest", "document");
         headers.Add("Sec-Fetch-Mode", "navigate");
         headers.Add("Sec-Fetch-Site", "none");
+        headers.Add("Sec-Fetch-User", "?1");
         headers.Add("Upgrade-Insecure-Requests", "1");
 
         return client;

@@ -93,10 +93,14 @@ public class AccountCleanupWorker(
             _lastOutcome,
             _runs,
             [
-                new("Runs every", PriceCheckWorker.Describe(_options.Interval)),
-                new("Empty accounts after", PriceCheckWorker.Describe(_options.EmptyAccountAge)),
-                new("Accounts with products after", PriceCheckWorker.Describe(_options.InactiveAccountAge)),
-                new("Dry run", _options.DryRun ? "yes — nothing is deleted" : "no"),
+                new("Runs every", PriceCheckWorker.Describe(_options.Interval),
+                    "How often the sweep looks for accounts to remove. It touches only the database, so it is cheap to run often."),
+                new("Empty accounts after", PriceCheckWorker.Describe(_options.EmptyAccountAge),
+                    "An account that never had a product added is deleted once it has gone unvisited this long — these are almost always someone who opened the page and left."),
+                new("Accounts with products after", PriceCheckWorker.Describe(_options.InactiveAccountAge),
+                    "An account that is actually tracking something survives far longer, because losing it means losing its price history for good."),
+                new("Dry run", _options.DryRun ? "yes — nothing is deleted" : "no",
+                    "When on, the worker logs exactly what it would delete and then deletes nothing. Use it to check the thresholds before letting it act."),
             ]));
 
     private async Task RunAsync(CancellationToken ct)

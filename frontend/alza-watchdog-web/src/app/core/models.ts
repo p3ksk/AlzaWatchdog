@@ -132,6 +132,8 @@ export interface AccountImportResult {
 export interface AdminWorkerSetting {
   label: string;
   value: string;
+  /** Explanation shown on hover, written by whichever worker reports the value. */
+  hint: string | null;
 }
 
 export interface AdminWorker {

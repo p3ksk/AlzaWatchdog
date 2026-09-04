@@ -35,7 +35,7 @@ public record AdminItemDto(
     DateTimeOffset CreatedAt,
     IReadOnlyList<PriceSnapshotDto> Snapshots);
 
-public record AdminWorkerSettingDto(string Label, string Value);
+public record AdminWorkerSettingDto(string Label, string Value, string? Hint);
 
 /// <summary>One background worker, as shown in the admin section.</summary>
 public record AdminWorkerDto(

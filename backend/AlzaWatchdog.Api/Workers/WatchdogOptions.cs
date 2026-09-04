@@ -16,6 +16,12 @@ public class WatchdogOptions
     /// <summary>How long to stand down after alza.sk blocks us mid-sweep.</summary>
     public TimeSpan BlockedBackoff { get; set; } = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// Pause before the one retry a sweep's opening request gets if it is
+    /// challenged. Set to zero to disable the retry.
+    /// </summary>
+    public TimeSpan ChallengeRetryDelay { get; set; } = TimeSpan.FromSeconds(15);
+
     /// <summary>Failures in a row before an item is deactivated. Blocks do not count.</summary>
     public int MaxConsecutiveFailures { get; set; } = 10;
 

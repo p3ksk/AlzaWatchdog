@@ -2,7 +2,12 @@ using System.Collections.Concurrent;
 
 namespace AlzaWatchdog.Api.Workers;
 
-public record WorkerSetting(string Label, string Value);
+/// <summary>
+/// One line of a worker's status. <paramref name="Hint"/> is the explanation shown
+/// on hover: it lives next to the value it describes so renaming a label cannot
+/// leave a stale explanation behind somewhere else.
+/// </summary>
+public record WorkerSetting(string Label, string Value, string? Hint = null);
 
 /// <summary>What a background worker last did, and when it will act again.</summary>
 public record WorkerStatus(

@@ -67,9 +67,20 @@ builder.Services.AddSingleton<ProductImageCache>();
 //      blocked; the full Chrome User-Agent plus the Accept/Sec-Fetch headers a
 //      real navigation sends does not.
 //
-// The cookie container matters too: Cloudflare hands back a __cf_bm cookie, and
-// replaying it across polls keeps us from being re-challenged every time.
+// The cookie container matters too: Cloudflare hands back __cf_bm and _cfuvid on
+// a request it lets through, and replaying them keeps us from being judged on the
+// handshake alone next time. Measured: a client holding those cookies fetched the
+// same page ten times in a row without a single challenge, while cookie-less
+// requests from the same host in the same minute were challenged twice.
+//
+// The jar therefore lives out here rather than inside the handler factory below.
+// HttpClientFactory rotates the primary handler every two minutes, so a jar
+// created in there is empty again long before the next six-hourly sweep — every
+// sweep would open with the one request most likely to be challenged, and a
+// single challenge abandons the whole sweep.
 // ---------------------------------------------------------------------------
+var alzaCookies = new CookieContainer();
+
 builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
@@ -97,7 +108,7 @@ builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
 .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
     AutomaticDecompression = DecompressionMethods.All,
-    CookieContainer = new CookieContainer(),
+    CookieContainer = alzaCookies,
     UseCookies = true,
     SslOptions = new SslClientAuthenticationOptions
     {

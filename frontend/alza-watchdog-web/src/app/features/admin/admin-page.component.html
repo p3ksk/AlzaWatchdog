@@ -26,201 +26,292 @@
     </dl>
   }
 
-  <section>
-    <h2>Background workers</h2>
-    <ul class="workers">
-      @for (w of workers(); track w.name) {
-        <li class="worker" [class.off]="!w.enabled">
-          <div class="worker-head">
-            <div>
-              <h3>{{ w.name }}</h3>
-              <p class="desc">{{ w.description }}</p>
-            </div>
-            <span class="state" [class.on]="w.enabled">{{ w.enabled ? 'running' : 'disabled' }}</span>
+
+  <div class="tabs" role="tablist" aria-label="Admin sections">
+    @for (t of tabs; track t.key) {
+      <button
+        type="button"
+        role="tab"
+        class="tab"
+        [class.active]="tab() === t.key"
+        [attr.aria-selected]="tab() === t.key"
+        (click)="tab.set(t.key)"
+      >
+        {{ t.label }}
+        @if (t.count) {
+          <span class="count">{{ count(t.key) }}</span>
+        }
+      </button>
+    }
+  </div>
+
+  <div role="tabpanel">
+    @switch (tab()) {
+      @case ('products') {
+        <section>
+          <h2>
+            Products ({{ visibleProducts().length }})
+          </h2>
+
+          @if (userFilter(); as owner) {
+            <p class="filter-bar">
+              Showing only <code>{{ shortId(owner) }}…</code>
+              <button type="button" (click)="clearFilter()">Show all products</button>
+            </p>
+          }
+
+          <div class="search">
+            <label for="product-search">Find</label>
+            <input
+              id="product-search"
+              type="search"
+              placeholder="name, code, or a pasted alza.sk link"
+              autocomplete="off"
+              spellcheck="false"
+              [value]="productQuery()"
+              (input)="searchProducts($any($event.target).value)"
+            />
+            @if (productQuery()) {
+              <span class="matches">
+                {{ matchingProducts().length }} of {{ visibleProducts().length }}
+              </span>
+              <button type="button" class="bare" (click)="searchProducts('')">Clear</button>
+            }
           </div>
 
-          @if (w.enabled) {
-            <p class="timing">
-              @if (w.idle) {
-                <span class="dim">Has not completed a pass yet since start-up.</span>
-              } @else {
-                <span [title]="w.lastRunAt">Last run {{ ago(w.lastRunAt) }}</span>
-                <span class="sep">·</span>
-                <span [title]="w.nextRunAt">next {{ ago(w.nextRunAt) }}</span>
-                <span class="sep">·</span>
-                <span>{{ w.runs }} {{ w.runs === 1 ? 'pass' : 'passes' }}</span>
+          <ul class="items">
+            @for (group of pagedProducts(); track group.item.productCode) {
+              @let item = group.item;
+              <li class="item" [class.inactive]="!item.isActive">
+                <div class="head">
+                  <div class="ident">
+                    <a [href]="item.url" target="_blank" rel="noopener noreferrer">
+                      {{ item.name ?? item.url }}
+                    </a>
+                    <p class="meta">
+                      <code>d{{ item.productCode }}</code>
+                      · watched by {{ group.trackedBy.length }}
+                        {{ group.trackedBy.length === 1 ? 'list' : 'lists' }}
+                      · checked {{ ago(item.lastCheckedAt) }}
+                      @if (!item.isActive) {
+                        · <span class="bad">paused after {{ item.consecutiveFailures }} failures</span>
+                      }
+                    </p>
+                    @if (item.lastError) {
+                      <p class="meta bad">{{ item.lastError }}</p>
+                    }
+                  </div>
+
+                  <div class="prices">
+                    <span class="p">{{ price(item.lastPrice, item.currency) }}</span>
+                    @if (item.lastPlusPrice !== null) {
+                      <span class="alt">plus {{ price(item.lastPlusPrice, item.currency) }}</span>
+                    }
+                    @if (item.lastCouponPrice !== null) {
+                      <span class="alt">code {{ price(item.lastCouponPrice, item.currency) }}</span>
+                    }
+                  </div>
+
+                  <button type="button" (click)="toggleItem(item.id)" [attr.aria-expanded]="expandedItem() === item.id">
+                    {{ expandedItem() === item.id ? 'Hide' : item.snapshots.length + ' snaps' }}
+                  </button>
+                </div>
+
+                @if (expandedItem() === item.id) {
+                  <div class="snapshots">
+                    @if (item.snapshots.length > 1) {
+                      <app-price-chart
+                        [history]="item.snapshots"
+                        [currency]="item.currency"
+                        [detailed]="true"
+                      />
+                    }
+                    <div class="scroll">
+                      <table>
+                        <thead>
+                          <tr><th>Captured</th><th>Price</th><th>AlzaPlus+</th><th>With code</th><th>Availability</th></tr>
+                        </thead>
+                        <tbody>
+                          @for (s of item.snapshots; track s.capturedAt) {
+                            <tr>
+                              <td>{{ s.capturedAt | date: 'd MMM y, HH:mm' }}</td>
+                              <td class="num">{{ price(s.price, item.currency) }}</td>
+                              <td class="num">{{ s.plusPrice === null ? '—' : price(s.plusPrice, item.currency) }}</td>
+                              <td class="num">{{ s.couponPrice === null ? '—' : price(s.couponPrice, item.currency) }}</td>
+                              <td>{{ s.availability ?? '—' }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+
+          @if (matchingProducts().length === 0) {
+            <p class="muted">No product matches that.</p>
+          }
+
+          <app-paginator
+            [total]="matchingProducts().length"
+            [page]="productPageNumber()"
+            [pageSize]="productPageSize"
+            label="Product pages"
+            (pageChange)="productPage.set($event)"
+          />
+        </section>
+      }
+      @case ('accounts') {
+        <section>
+          <h2>Accounts ({{ users().length }})</h2>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th><th>Lists</th><th>Items</th><th>Snaps</th>
+                  <th>Plus</th><th>Created</th><th>Last seen</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (u of pagedUsers(); track u.id) {
+                  <tr [class.selected]="userFilter() === u.id">
+                    <td>
+                      <code>{{ shortId(u.id) }}…</code>
+                      @if (u.isAdmin) { <span class="tag">admin</span> }
+                    </td>
+                    <td class="num">{{ u.listCount }}</td>
+                    <td class="num">{{ u.itemCount }}</td>
+                    <td class="num">{{ u.snapshotCount }}</td>
+                    <td>{{ u.hasAlzaPlus ? 'yes' : '—' }}</td>
+                    <td>{{ u.createdAt | date: 'd MMM y' }}</td>
+                    <td [title]="u.lastSeenAt">{{ ago(u.lastSeenAt) }}</td>
+                    <td class="row-actions">
+                      <button type="button" class="bare" (click)="filterByUser(u.id)">
+                        {{ userFilter() === u.id ? 'Clear' : 'Items' }}
+                      </button>
+                      <button type="button" class="bare" (click)="exportUser(u.id)" [disabled]="busy()">
+                        Export
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <app-paginator
+            [total]="users().length"
+            [page]="accountPageNumber()"
+            [pageSize]="accountPageSize"
+            label="Account pages"
+            (pageChange)="accountPage.set($event)"
+          />
+        </section>
+      }
+      @case ('workers') {
+        <section>
+          <h2>Background workers</h2>
+          <ul class="workers">
+            @for (w of workers(); track w.name) {
+              <li class="worker" [class.off]="!w.enabled">
+                <div class="worker-head">
+                  <div>
+                    <h3>{{ w.name }}</h3>
+                    <p class="desc">{{ w.description }}</p>
+                  </div>
+                  <app-tip [text]="w.enabled ? tips.running : tips.disabled" [underline]="false">
+                    <span class="state" [class.on]="w.enabled">{{ w.enabled ? 'running' : 'disabled' }}</span>
+                  </app-tip>
+                </div>
+
+                @if (w.enabled) {
+                  <p class="timing">
+                    @if (w.idle) {
+                      <app-tip [text]="tips.idle" [underline]="false">
+                        <span class="dim">Has not completed a pass yet since start-up.</span>
+                      </app-tip>
+                    } @else {
+                      <app-tip [text]="when(w.lastRunAt) + tips.lastRun">
+                        <span>Last run {{ ago(w.lastRunAt) }}</span>
+                      </app-tip>
+                      <span class="sep">·</span>
+                      <app-tip [text]="when(w.nextRunAt) + tips.nextRun">
+                        <span>next {{ ago(w.nextRunAt) }}</span>
+                      </app-tip>
+                      <span class="sep">·</span>
+                      <app-tip [text]="tips.passes">
+                        <span>{{ w.runs }} {{ w.runs === 1 ? 'pass' : 'passes' }}</span>
+                      </app-tip>
+                    }
+                  </p>
+
+                  @if (w.lastOutcome) {
+                    <p class="outcome" [class.bad]="isBadOutcome(w.lastOutcome)">
+                      <app-tip [text]="tips.outcome" [underline]="false">{{ w.lastOutcome }}</app-tip>
+                    </p>
+                  }
+
+                  @if (w.now.length > 0) {
+                    <dl class="figures">
+                      @for (n of w.now; track n.label) {
+                        <div>
+                          <dt><app-tip [text]="n.hint">{{ n.label }}</app-tip></dt>
+                          <dd>{{ n.value }}</dd>
+                        </div>
+                      }
+                    </dl>
+                  }
+                }
+
+                <dl class="settings">
+                  @for (setting of w.settings; track setting.label) {
+                    <div>
+                      <dt><app-tip [text]="setting.hint">{{ setting.label }}</app-tip></dt>
+                      <dd>{{ setting.value }}</dd>
+                    </div>
+                  }
+                </dl>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+      @case ('backup') {
+        <section>
+          <h2>Backup</h2>
+          <div class="tools">
+            <button type="button" (click)="exportAll()" [disabled]="busy()">Export everything</button>
+            <label class="file">
+              <input type="file" accept="application/json,.json" (change)="importFile($event)" [disabled]="busy()" />
+              <span>Import bundle…</span>
+            </label>
+            <span class="hint">
+              Import keeps original ids, so restored bookmarks still work. An account that
+              already exists is left untouched.
+            </span>
+          </div>
+
+          @if (importResult(); as r) {
+            <p class="result" role="status">
+              ✓ Imported {{ r.accountsImported }} account(s), {{ r.listsImported }} list(s),
+              {{ r.itemsImported }} item(s), {{ r.snapshotsImported }} snapshot(s).
+              @if (r.accountsSkipped > 0) {
+                <span class="warn">{{ r.accountsSkipped }} already existed and were skipped.</span>
               }
             </p>
-
-            @if (w.lastOutcome) {
-              <p class="outcome" [class.bad]="isBadOutcome(w.lastOutcome)">{{ w.lastOutcome }}</p>
-            }
-
-            @if (w.now.length > 0) {
-              <dl class="figures">
-                @for (n of w.now; track n.label) {
-                  <div><dt>{{ n.label }}</dt><dd>{{ n.value }}</dd></div>
+            @if (r.notes.length > 0) {
+              <ul class="notes">
+                @for (note of r.notes; track note) {
+                  <li>{{ note }}</li>
                 }
-              </dl>
+              </ul>
             }
           }
-
-          <dl class="settings">
-            @for (setting of w.settings; track setting.label) {
-              <div><dt>{{ setting.label }}</dt><dd>{{ setting.value }}</dd></div>
-            }
-          </dl>
-        </li>
-      }
-    </ul>
-  </section>
-
-  <section>
-    <h2>Backup</h2>
-    <div class="tools">
-      <button type="button" (click)="exportAll()" [disabled]="busy()">Export everything</button>
-      <label class="file">
-        <input type="file" accept="application/json,.json" (change)="importFile($event)" [disabled]="busy()" />
-        <span>Import bundle…</span>
-      </label>
-      <span class="hint">
-        Import keeps original ids, so restored bookmarks still work. An account that
-        already exists is left untouched.
-      </span>
-    </div>
-
-    @if (importResult(); as r) {
-      <p class="result" role="status">
-        ✓ Imported {{ r.accountsImported }} account(s), {{ r.listsImported }} list(s),
-        {{ r.itemsImported }} item(s), {{ r.snapshotsImported }} snapshot(s).
-        @if (r.accountsSkipped > 0) {
-          <span class="warn">{{ r.accountsSkipped }} already existed and were skipped.</span>
-        }
-      </p>
-      @if (r.notes.length > 0) {
-        <ul class="notes">
-          @for (note of r.notes; track note) {
-            <li>{{ note }}</li>
-          }
-        </ul>
+        </section>
       }
     }
-  </section>
+  </div>
 
-  <section>
-    <h2>Accounts ({{ users().length }})</h2>
-    <div class="scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Key</th><th>Lists</th><th>Items</th><th>Snaps</th>
-            <th>Plus</th><th>Created</th><th>Last seen</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (u of users(); track u.id) {
-            <tr [class.selected]="userFilter() === u.id">
-              <td>
-                <code>{{ shortId(u.id) }}…</code>
-                @if (u.isAdmin) { <span class="tag">admin</span> }
-              </td>
-              <td class="num">{{ u.listCount }}</td>
-              <td class="num">{{ u.itemCount }}</td>
-              <td class="num">{{ u.snapshotCount }}</td>
-              <td>{{ u.hasAlzaPlus ? 'yes' : '—' }}</td>
-              <td>{{ u.createdAt | date: 'd MMM y' }}</td>
-              <td [title]="u.lastSeenAt">{{ ago(u.lastSeenAt) }}</td>
-              <td class="row-actions">
-                <button type="button" class="bare" (click)="filterByUser(u.id)">
-                  {{ userFilter() === u.id ? 'Clear' : 'Items' }}
-                </button>
-                <button type="button" class="bare" (click)="exportUser(u.id)" [disabled]="busy()">
-                  Export
-                </button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section>
-    <h2>
-      Products ({{ visibleItems().length }})
-      @if (userFilter()) {
-        <button type="button" class="bare" (click)="clearFilter()">show all</button>
-      }
-    </h2>
-
-    <ul class="items">
-      @for (item of visibleItems(); track item.id) {
-        <li class="item" [class.inactive]="!item.isActive">
-          <div class="head">
-            <div class="ident">
-              <a [href]="item.url" target="_blank" rel="noopener noreferrer">
-                {{ item.name ?? item.url }}
-              </a>
-              <p class="meta">
-                <code>d{{ item.productCode }}</code>
-                · {{ item.listName }}
-                · <code>{{ shortId(item.userId) }}…</code>
-                · checked {{ ago(item.lastCheckedAt) }}
-                @if (!item.isActive) {
-                  · <span class="bad">paused after {{ item.consecutiveFailures }} failures</span>
-                }
-              </p>
-              @if (item.lastError) {
-                <p class="meta bad">{{ item.lastError }}</p>
-              }
-            </div>
-
-            <div class="prices">
-              <span class="p">{{ price(item.lastPrice, item.currency) }}</span>
-              @if (item.lastPlusPrice !== null) {
-                <span class="alt">plus {{ price(item.lastPlusPrice, item.currency) }}</span>
-              }
-              @if (item.lastCouponPrice !== null) {
-                <span class="alt">code {{ price(item.lastCouponPrice, item.currency) }}</span>
-              }
-            </div>
-
-            <button type="button" (click)="toggleItem(item.id)" [attr.aria-expanded]="expandedItem() === item.id">
-              {{ expandedItem() === item.id ? 'Hide' : item.snapshots.length + ' snaps' }}
-            </button>
-          </div>
-
-          @if (expandedItem() === item.id) {
-            <div class="snapshots">
-              @if (item.snapshots.length > 1) {
-                <app-price-chart
-                  [history]="item.snapshots"
-                  [currency]="item.currency"
-                  [detailed]="true"
-                />
-              }
-              <div class="scroll">
-                <table>
-                  <thead>
-                    <tr><th>Captured</th><th>Price</th><th>AlzaPlus+</th><th>With code</th><th>Availability</th></tr>
-                  </thead>
-                  <tbody>
-                    @for (s of item.snapshots; track s.capturedAt) {
-                      <tr>
-                        <td>{{ s.capturedAt | date: 'd MMM y, HH:mm' }}</td>
-                        <td class="num">{{ price(s.price, item.currency) }}</td>
-                        <td class="num">{{ s.plusPrice === null ? '—' : price(s.plusPrice, item.currency) }}</td>
-                        <td class="num">{{ s.couponPrice === null ? '—' : price(s.couponPrice, item.currency) }}</td>
-                        <td>{{ s.availability ?? '—' }}</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          }
-        </li>
-      }
-    </ul>
-  </section>
 }

@@ -1,0 +1,63 @@
+:host {
+  display: contents;
+}
+
+.tip {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted currentColor;
+
+  &.plain,
+  &.bare {
+    border-bottom: 0;
+  }
+
+  &.bare {
+    cursor: inherit;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+}
+
+.bubble {
+  /* Hidden with clip rather than display:none so the text stays available to a
+     screen reader while it is invisible. */
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(22rem, 70vw);
+  padding: 0.4rem 0.55rem;
+  border: 2px solid var(--rule-strong);
+  background: var(--panel-sunken);
+  box-shadow: 0 0 0 1px var(--paper), 0 6px 14px rgb(0 0 0 / 0.35);
+  color: var(--ink);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  transition: opacity 90ms linear;
+  clip-path: inset(50%);
+}
+
+.tip:hover .bubble,
+.tip:focus-visible .bubble {
+  opacity: 1;
+  clip-path: none;
+}
+
+/* Set by the component once it has measured the bubble against the viewport. */
+.tip.flip .bubble {
+  left: auto;
+  right: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble { transition: none; }
+}

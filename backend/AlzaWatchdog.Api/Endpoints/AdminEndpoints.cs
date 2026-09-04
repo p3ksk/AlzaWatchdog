@@ -4,7 +4,6 @@ using AlzaWatchdog.Api.Contracts;
 using AlzaWatchdog.Api.Data;
 using AlzaWatchdog.Api.Domain;
 using AlzaWatchdog.Api.Workers;
-using AlzaWatchdog.Api.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -56,12 +55,15 @@ public static class AdminEndpoints
             {
                 [PriceCheckWorker.WorkerName] =
                 [
-                    new("Products due now", dueNow.ToString()),
-                    new("Paused products", paused.ToString()),
+                    new("Products due now", dueNow.ToString(),
+                        "Active products whose last check is older than the check interval. This is what the next sweep will fetch, so it should fall to zero after a clean pass."),
+                    new("Paused products", paused.ToString(),
+                        "Products deactivated after too many failures in a row. They are skipped entirely until someone resumes them."),
                 ],
                 [AccountCleanupWorker.WorkerName] =
                 [
-                    new("Products nobody watches", unwatched.ToString()),
+                    new("Products nobody watches", unwatched.ToString(),
+                        "Products left on no list at all, usually after the last account tracking them was removed. The next pass deletes them along with their history."),
                 ],
             };
 
@@ -74,7 +76,7 @@ public static class AdminEndpoints
                 w.NextRunAt,
                 w.LastOutcome,
                 w.Runs,
-                [.. w.Settings.Select(s => new AdminWorkerSettingDto(s.Label, s.Value))],
+                [.. w.Settings.Select(s => new AdminWorkerSettingDto(s.Label, s.Value, s.Hint))],
                 live.GetValueOrDefault(w.Name) ?? [])));
         })
         .WithName("AdminWorkers");

@@ -12,7 +12,9 @@ namespace AlzaWatchdog.Api.Workers;
 /// alza.sk rate-limits aggressively, so the sweep is deliberately slow and serial.
 /// Requests are grouped by product code — a product watched by ten users still costs
 /// exactly one request — and spaced with jitter. A block aborts the whole sweep
-/// rather than pushing through it.
+/// rather than pushing through it, save for one retry of the opening request,
+/// which is challenged often enough that treating it as fatal loses sweeps to a
+/// site that is answering perfectly well.
 /// </summary>
 public class PriceCheckWorker(
     IServiceScopeFactory scopeFactory,
@@ -88,7 +90,7 @@ public class PriceCheckWorker(
     }
 
     /// <returns>True when the sweep was cut short because alza.sk blocked us.</returns>
-    private async Task<bool> RunSweepAsync(CancellationToken ct)
+    internal async Task<bool> RunSweepAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -121,11 +123,36 @@ public class PriceCheckWorker(
             if (ct.IsCancellationRequested)
                 break;
 
+            var opening = first;
+
             if (!first)
                 await Task.Delay(NextDelay(), ct);
             first = false;
 
             var result = await scraper.FetchAsync(product.CanonicalUrl, ct);
+
+            // A sweep's opening request goes out with a cold cookie jar, which is
+            // the state Cloudflare challenges: measured from this host, ten
+            // consecutive fetches holding __cf_bm and _cfuvid were all let
+            // through, while cookie-less ones in the same minute were turned away.
+            // Standing down for half an hour over that costs a whole sweep, so the
+            // opening challenge buys exactly one retry — by which point the jar has
+            // whatever the refusal handed back. A block once the jar is warm is a
+            // different signal and still stands the sweep down.
+            if (result.Status == ScrapeStatus.Blocked && opening && _options.ChallengeRetryDelay > TimeSpan.Zero)
+            {
+                logger.LogInformation(
+                    "Opening request was challenged; retrying once in {Delay}.",
+                    _options.ChallengeRetryDelay);
+
+                await Task.Delay(_options.ChallengeRetryDelay, ct);
+                result = await scraper.FetchAsync(product.CanonicalUrl, ct);
+
+                // Logged either way: this line is the only evidence of whether the
+                // retry is worth making.
+                logger.LogInformation("Retry after the opening challenge: {Status}.", result.Status);
+            }
+
             updater.Apply(db, product, result, DateTimeOffset.UtcNow);
             await db.SaveChangesAsync(ct);
 
@@ -192,10 +219,18 @@ public class PriceCheckWorker(
             _lastOutcome,
             _runs,
             [
-                new("Check interval", Describe(_options.CheckInterval)),
-                new("Between requests", $"{Describe(_options.DelayBetweenRequests)} + up to {Describe(_options.RequestJitter)} jitter"),
-                new("Backoff when blocked", Describe(_options.BlockedBackoff)),
-                new("Pause after failures", _options.MaxConsecutiveFailures.ToString()),
+                new("Check interval", Describe(_options.CheckInterval),
+                    "How old a product's last check has to be before the worker fetches it again. The worker sleeps until the earliest product is actually due, not on a fixed timer."),
+                new("Between requests", $"{Describe(_options.DelayBetweenRequests)} + up to {Describe(_options.RequestJitter)} jitter",
+                    "Pause after each product page, plus a random extra, so a sweep reaches alza.sk as a trickle rather than a burst."),
+                new("Backoff when blocked", Describe(_options.BlockedBackoff),
+                    "When Cloudflare refuses a request the rest of the sweep is abandoned and the worker waits this long. Products it never reached stay due, so nothing is skipped."),
+                new("Retry opening challenge", _options.ChallengeRetryDelay > TimeSpan.Zero
+                        ? $"after {Describe(_options.ChallengeRetryDelay)}"
+                        : "off",
+                    "A sweep's first request carries no Cloudflare cookies yet and is the one most likely to be challenged. That first refusal buys one retry instead of costing the whole sweep; a refusal later in the sweep does not."),
+                new("Pause after failures", _options.MaxConsecutiveFailures.ToString(),
+                    "After this many failed checks in a row a product is deactivated and stops being fetched, until someone resumes it from their list."),
             ]));
 
     internal static string Describe(TimeSpan value) => value switch
