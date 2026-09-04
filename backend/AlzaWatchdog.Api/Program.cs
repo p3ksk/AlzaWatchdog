@@ -74,6 +74,11 @@ builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
 
+    // Measured against the live site: User-Agent + Accept + Accept-Language alone
+    // is answered with 403 and "Cf-Mitigated: challenge"; adding the sec-ch-ua and
+    // Sec-Fetch-* headers below returns 200 from the same IP seconds later. The
+    // fuller Client Hints Cloudflare advertises in Critical-CH (arch, bitness,
+    // model, full-version-list) made no difference, so they are not sent.
     var headers = client.DefaultRequestHeaders;
     headers.Add("User-Agent",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");

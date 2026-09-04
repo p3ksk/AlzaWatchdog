@@ -11,6 +11,9 @@ namespace AlzaWatchdog.Api.Scraping;
 /// </summary>
 public class AlzaScraper(HttpClient http, ILogger<AlzaScraper> logger) : IAlzaScraper
 {
+    private static string? FirstHeader(HttpResponseMessage response, string name) =>
+        response.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() : null;
+
     public async Task<ScrapeResult> FetchAsync(string canonicalUrl, CancellationToken ct = default)
     {
         try
@@ -19,8 +22,29 @@ public class AlzaScraper(HttpClient http, ILogger<AlzaScraper> logger) : IAlzaSc
 
             if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
             {
-                logger.LogWarning("alza.sk blocked the request for {Url} ({Status})", canonicalUrl, (int)response.StatusCode);
-                return ScrapeResult.Failure(ScrapeStatus.Blocked, $"Blocked by alza.sk ({(int)response.StatusCode}).");
+                // Cloudflare says what kind of refusal this is and gives a ray id to
+                // quote. Both were being discarded, which is why an earlier block
+                // could only be diagnosed by hand with curl.
+                var mitigation = FirstHeader(response, "cf-mitigated");
+                var ray = FirstHeader(response, "cf-ray");
+                var retryAfter = response.Headers.RetryAfter?.Delta
+                                 ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow);
+
+                logger.LogWarning(
+                    "alza.sk refused {Url}: {Status}, cf-mitigated={Mitigation}, ray={Ray}, retry-after={RetryAfter}",
+                    canonicalUrl, (int)response.StatusCode, mitigation ?? "(none)", ray ?? "(none)",
+                    retryAfter?.ToString() ?? "(none)");
+
+                // "challenge" means Cloudflare wants a browser to solve a JS
+                // challenge — a different thing from a rate limit, and not
+                // something waiting longer will fix on its own.
+                var reason = mitigation is not null
+                    ? $"Cloudflare {mitigation} ({(int)response.StatusCode})"
+                    : $"Blocked by alza.sk ({(int)response.StatusCode})";
+
+                return ScrapeResult.Failure(
+                    ScrapeStatus.Blocked,
+                    ray is null ? $"{reason}." : $"{reason}, ray {ray}.");
             }
 
             if (response.StatusCode == HttpStatusCode.NotFound)
