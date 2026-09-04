@@ -27,6 +27,55 @@
   }
 
   <section>
+    <h2>Background workers</h2>
+    <ul class="workers">
+      @for (w of workers(); track w.name) {
+        <li class="worker" [class.off]="!w.enabled">
+          <div class="worker-head">
+            <div>
+              <h3>{{ w.name }}</h3>
+              <p class="desc">{{ w.description }}</p>
+            </div>
+            <span class="state" [class.on]="w.enabled">{{ w.enabled ? 'running' : 'disabled' }}</span>
+          </div>
+
+          @if (w.enabled) {
+            <p class="timing">
+              @if (w.idle) {
+                <span class="dim">Has not completed a pass yet since start-up.</span>
+              } @else {
+                <span [title]="w.lastRunAt">Last run {{ ago(w.lastRunAt) }}</span>
+                <span class="sep">·</span>
+                <span [title]="w.nextRunAt">next {{ ago(w.nextRunAt) }}</span>
+                <span class="sep">·</span>
+                <span>{{ w.runs }} {{ w.runs === 1 ? 'pass' : 'passes' }}</span>
+              }
+            </p>
+
+            @if (w.lastOutcome) {
+              <p class="outcome" [class.bad]="isBadOutcome(w.lastOutcome)">{{ w.lastOutcome }}</p>
+            }
+
+            @if (w.now.length > 0) {
+              <dl class="figures">
+                @for (n of w.now; track n.label) {
+                  <div><dt>{{ n.label }}</dt><dd>{{ n.value }}</dd></div>
+                }
+              </dl>
+            }
+          }
+
+          <dl class="settings">
+            @for (setting of w.settings; track setting.label) {
+              <div><dt>{{ setting.label }}</dt><dd>{{ setting.value }}</dd></div>
+            }
+          </dl>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <section>
     <h2>Backup</h2>
     <div class="tools">
       <button type="button" (click)="exportAll()" [disabled]="busy()">Export everything</button>

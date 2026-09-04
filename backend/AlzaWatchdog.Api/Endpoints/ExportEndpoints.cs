@@ -65,19 +65,19 @@ public static class ExportEndpoints
     }
 
     private static async Task<Dictionary<Guid, List<PriceSnapshotDto>>> LoadSnapshotsAsync(
-        AppDbContext db, List<Guid> itemIds, CancellationToken ct)
+        AppDbContext db, List<Guid> productIds, CancellationToken ct)
     {
-        if (itemIds.Count == 0)
+        if (productIds.Count == 0)
             return [];
 
         var rows = await db.PriceSnapshots
             .AsNoTracking()
-            .Where(s => itemIds.Contains(s.TrackedItemId))
+            .Where(s => productIds.Contains(s.ProductId))
             .OrderBy(s => s.CapturedAt)
             .ToListAsync(ct);
 
         return rows
-            .GroupBy(s => s.TrackedItemId)
+            .GroupBy(s => s.ProductId)
             .ToDictionary(
                 g => g.Key,
                 g => g.Select(s => new PriceSnapshotDto(
@@ -90,13 +90,14 @@ public static class ExportEndpoints
         var items = await db.TrackedItems
             .AsNoTracking()
             .Include(i => i.WatchList)
+            .Include(i => i.Product)
             .Where(i => i.WatchList.UserId == userId)
             .OrderBy(i => i.WatchListId)
             .ThenBy(i => i.SortOrder)
             .ThenBy(i => i.CreatedAt)
             .ToListAsync(ct);
 
-        var snapshots = await LoadSnapshotsAsync(db, items.Select(i => i.Id).ToList(), ct);
+        var snapshots = await LoadSnapshotsAsync(db, items.Select(i => i.ProductId).Distinct().ToList(), ct);
 
         return new ProductExportBundle(
             ProductExportBundle.CurrentFormat,
@@ -105,22 +106,22 @@ public static class ExportEndpoints
             items.Select(i => new ExportItem(
                 i.Id,
                 i.WatchList.Name,
-                i.ProductCode,
-                i.CanonicalUrl,
-                i.Name,
-                i.ImageUrl,
-                i.Currency,
-                i.LastPrice,
-                i.LastPlusPrice,
-                i.LastCouponPrice,
-                i.LastAvailability,
-                i.LastCheckedAt,
-                i.LastError,
-                i.ConsecutiveFailures,
-                i.IsActive,
+                i.Product.ProductCode,
+                i.Product.CanonicalUrl,
+                i.Product.Name,
+                i.Product.ImageUrl,
+                i.Product.Currency,
+                i.Product.LastPrice,
+                i.Product.LastPlusPrice,
+                i.Product.LastCouponPrice,
+                i.Product.LastAvailability,
+                i.Product.LastCheckedAt,
+                i.Product.LastError,
+                i.Product.ConsecutiveFailures,
+                i.Product.IsActive,
                 i.SortOrder,
                 i.CreatedAt,
-                snapshots.GetValueOrDefault(i.Id) ?? [])).ToList());
+                snapshots.GetValueOrDefault(i.ProductId) ?? [])).ToList());
     }
 
     private static async Task<ImportResultDto> ImportAsync(
@@ -131,6 +132,7 @@ public static class ExportEndpoints
             .FirstAsync(u => u.Id == bundle.UserId, ct);
 
         var notes = new List<string>();
+        var products = new Dictionary<string, Product>();
         int imported = 0, skipped = 0, snapshots = 0;
 
         foreach (var item in bundle.Items)
@@ -156,7 +158,7 @@ public static class ExportEndpoints
             // The same product cannot appear twice on one list, so re-importing
             // into a live account leaves its existing items untouched.
             var duplicate = await db.TrackedItems.AnyAsync(
-                i => i.WatchListId == list.Id && i.ProductCode == item.ProductCode, ct);
+                i => i.WatchListId == list.Id && i.Product.ProductCode == item.ProductCode, ct);
             if (duplicate)
             {
                 skipped++;
@@ -164,27 +166,27 @@ public static class ExportEndpoints
                 continue;
             }
 
+            var (product, createdProduct) = await ProductRestore.EnsureAsync(db, products, new ProductFacts(
+                item.ProductCode, item.CanonicalUrl, item.Name, item.ImageUrl, item.Currency,
+                item.LastPrice, item.LastPlusPrice, item.LastCouponPrice, item.LastAvailability,
+                item.LastCheckedAt, item.LastError, item.ConsecutiveFailures, item.IsActive,
+                item.CreatedAt), ct);
+
             db.TrackedItems.Add(new TrackedItem
             {
                 Id = item.Id,
                 WatchListId = list.Id,
-                ProductCode = item.ProductCode,
-                CanonicalUrl = item.CanonicalUrl,
-                Name = item.Name,
-                ImageUrl = item.ImageUrl,
-                Currency = item.Currency,
-                LastPrice = item.LastPrice,
-                LastPlusPrice = item.LastPlusPrice,
-                LastCouponPrice = item.LastCouponPrice,
-                LastAvailability = item.LastAvailability,
-                LastCheckedAt = item.LastCheckedAt,
-                LastError = item.LastError,
-                ConsecutiveFailures = item.ConsecutiveFailures,
-                IsActive = item.IsActive,
+                ProductId = product.Id,
                 SortOrder = item.SortOrder,
                 CreatedAt = item.CreatedAt,
             });
             imported++;
+
+            // History belongs to the product now. A bundle carries a copy per
+            // tracked item, so only the first entry for a product contributes it —
+            // importing the rest would recreate the duplication this removed.
+            if (!createdProduct)
+                continue;
 
             foreach (var snapshot in item.Snapshots)
             {
@@ -192,7 +194,7 @@ public static class ExportEndpoints
                 // they are regenerated rather than imported.
                 db.PriceSnapshots.Add(new PriceSnapshot
                 {
-                    TrackedItemId = item.Id,
+                    ProductId = product.Id,
                     Price = snapshot.Price,
                     PlusPrice = snapshot.PlusPrice,
                     CouponPrice = snapshot.CouponPrice,

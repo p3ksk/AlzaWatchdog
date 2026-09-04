@@ -69,6 +69,20 @@ export class AccountService {
     }
   }
 
+  /**
+   * Creates the account together with its first product. Nothing exists until
+   * this succeeds, so abandoning the wizard leaves no empty account behind.
+   */
+  async startWithFirstProduct(url: string): Promise<{ key: string; lists: WatchList[] }> {
+    const account = await firstValueFrom(this.api.startWithFirstProduct(url));
+    this._key.set(account.userId);
+    this._lists.set(account.lists);
+    this._hasAlzaPlus.set(account.hasAlzaPlus);
+    this._isAdmin.set(account.isAdmin);
+    this._loadFailed.set(false);
+    return { key: account.userId, lists: account.lists };
+  }
+
   /** Mints a brand new account. Only the root route does this. */
   async createAccount(): Promise<{ key: string; lists: WatchList[] }> {
     const account = await firstValueFrom(this.api.createAccount());

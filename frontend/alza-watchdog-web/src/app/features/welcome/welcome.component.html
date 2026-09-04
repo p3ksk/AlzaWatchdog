@@ -1,0 +1,104 @@
+<div class="hero">
+  <h1>Alza<span class="star">*</span>Watchdog</h1>
+  <p>
+    Watches alza.sk prices and remembers every change, so you can tell a real
+    discount from a fake one.
+  </p>
+  <button type="button" class="primary" (click)="open()">Get started</button>
+</div>
+
+<dialog #dialog (cancel)="cancel($event)">
+  <div class="wizard">
+    <ol class="steps" aria-label="Progress">
+      <li [class.done]="stepNumber() > 1" [class.now]="step() === 'intro'">Welcome</li>
+      <li [class.done]="stepNumber() > 2" [class.now]="step() === 'product'">First product</li>
+      <li [class.now]="step() === 'key'">Your link</li>
+    </ol>
+
+    @switch (step()) {
+      @case ('intro') {
+        <h2>How this works</h2>
+        <ul class="points">
+          <li>Paste alza.sk product links and the watchdog checks them on a schedule.</li>
+          <li>It records every price change, including AlzaPlus+ and discount-code prices.</li>
+          <li>No email, no password — nothing to sign up for.</li>
+        </ul>
+        <div class="foot">
+          <button type="button" class="primary" (click)="toProduct()">Next</button>
+        </div>
+      }
+
+      @case ('product') {
+        <h2>Add your first product</h2>
+        <p class="explain">
+          Nothing is created until this works, so an address that turns out to be
+          wrong costs you nothing.
+        </p>
+
+        <form (ngSubmit)="submit()">
+          <label class="sr-only" for="wizard-url">alza.sk product link</label>
+          <div class="row">
+            <span class="prompt" aria-hidden="true">&gt;</span>
+            <input
+              id="wizard-url"
+              name="url"
+              type="text"
+              inputmode="url"
+              [ngModel]="url()"
+              (ngModelChange)="url.set($event); error.set(null)"
+              placeholder="paste an alza.sk product link"
+              autocomplete="off"
+              spellcheck="false"
+              [disabled]="working()"
+              [attr.aria-invalid]="error() ? 'true' : null"
+            />
+            <button type="submit" class="primary" [disabled]="working() || !url().trim()">
+              {{ working() ? 'Checking…' : 'Watch it' }}
+            </button>
+          </div>
+        </form>
+
+        <p class="status" aria-live="polite">
+          @if (error(); as message) {
+            <span class="error">! {{ message }}</span>
+          } @else {
+            <span class="dim">
+              e.g.
+              <button type="button" class="link" (click)="useExample()">{{ exampleUrl }}</button>
+            </span>
+          }
+        </p>
+      }
+
+      @case ('key') {
+        <h2>Save this link</h2>
+
+        <p class="warn">
+          ⚠ This link is your account. There is no email and no password, and
+          nothing is stored in this browser — <strong>lose the link and the list is
+          gone for good.</strong> Bookmark it before you close the tab.
+        </p>
+
+        <div class="value">
+          <code>{{ accountUrl() ?? '—' }}</code>
+          <button type="button" (click)="copy()" [disabled]="!accountUrl()">
+            {{ copied() ? 'Copied' : 'Copy' }}
+          </button>
+        </div>
+
+        <p class="explain">
+          Anyone with the link can see and edit your lists, so share it only with
+          people you would give that to.
+        </p>
+
+        @if (error(); as message) {
+          <p class="status"><span class="error">! {{ message }}</span></p>
+        }
+
+        <div class="foot">
+          <button type="button" class="primary" (click)="finish()">I have saved it — open my list</button>
+        </div>
+      }
+    }
+  </div>
+</dialog>

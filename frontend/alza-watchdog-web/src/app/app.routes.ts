@@ -4,21 +4,7 @@ import { AccountService } from './core/account.service';
 import { compactGuid, expandGuid } from './core/guid';
 import { AdminPageComponent } from './features/admin/admin-page.component';
 import { ListPageComponent } from './features/lists/list-page.component';
-
-/**
- * The bare root has no account in it, so it mints one and forwards to a real
- * bookmarkable address. This is the only place an account is ever created.
- */
-const newAccount: CanActivateFn = async () => {
-  const router = inject(Router);
-
-  try {
-    const { key, lists } = await inject(AccountService).createAccount();
-    return router.createUrlTree(['/user', compactGuid(key), 'list', compactGuid(lists[0].id)]);
-  } catch {
-    return router.createUrlTree(['/unavailable']);
-  }
-};
+import { WelcomeComponent } from './features/welcome/welcome.component';
 
 /**
  * Points the app at the account in the URL. Runs synchronously so the HTTP
@@ -64,7 +50,9 @@ const adminOnly: CanActivateFn = async () => {
 };
 
 export const routes: Routes = [
-  { path: '', canActivate: [newAccount], children: [] },
+  // The root creates nothing: the welcome wizard mints an account only once a
+  // first product has been accepted.
+  { path: '', component: WelcomeComponent },
   {
     path: 'user/:accountKey',
     canActivate: [useAccount],

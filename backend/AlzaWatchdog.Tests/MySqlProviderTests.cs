@@ -27,6 +27,7 @@ public class MySqlProviderTests
 
         Assert.NotNull(model.FindEntityType(typeof(Api.Domain.User)));
         Assert.NotNull(model.FindEntityType(typeof(Api.Domain.WatchList)));
+        Assert.NotNull(model.FindEntityType(typeof(Api.Domain.Product)));
         Assert.NotNull(model.FindEntityType(typeof(Api.Domain.TrackedItem)));
         Assert.NotNull(model.FindEntityType(typeof(Api.Domain.PriceSnapshot)));
     }
@@ -47,7 +48,7 @@ public class MySqlProviderTests
     public void Prices_and_timestamps_use_the_same_storage_shape_as_sqlite()
     {
         using var db = CreateContext();
-        var item = db.Model.FindEntityType(typeof(Api.Domain.TrackedItem))!;
+        var item = db.Model.FindEntityType(typeof(Api.Domain.Product))!;
 
         // Kept deliberately uniform across providers: prices as text and timestamps
         // as integers. Letting MySQL use its native DECIMAL and DATETIME would make

@@ -5,6 +5,7 @@ import {
   AccountImportResult,
   AccountResponse,
   AdminItem,
+  AdminWorker,
   AdminStats,
   AdminUser,
   ImportResult,
@@ -20,6 +21,11 @@ export class WatchdogApi {
 
   createAccount(): Observable<AccountResponse> {
     return this.http.post<AccountResponse>('/api/users', {});
+  }
+
+  /** Creates an account, its first list and its first product in one call. */
+  startWithFirstProduct(url: string): Observable<AccountResponse> {
+    return this.http.post<AccountResponse>('/api/users/start', { url });
   }
 
   getAccount(userId: string): Observable<AccountResponse> {
@@ -72,6 +78,10 @@ export class WatchdogApi {
 
   getAdminUsers(): Observable<AdminUser[]> {
     return this.http.get<AdminUser[]>('/api/admin/users');
+  }
+
+  getAdminWorkers(): Observable<AdminWorker[]> {
+    return this.http.get<AdminWorker[]>('/api/admin/workers');
   }
 
   getAdminItems(): Observable<AdminItem[]> {

@@ -11,6 +11,36 @@ import { AccountService } from '../../core/account.service';
  */
 const DISMISSED_KEY = 'alza-watchdog.bookmark-notice-dismissed';
 
+/**
+ * Shared so that dismissing the warning anywhere hides it everywhere in the same
+ * breath. Reading localStorage into a component field instead would freeze the
+ * answer at construction time — the banner is built before the wizard runs, so
+ * it would keep showing even once the wizard had delivered the same warning.
+ */
+const dismissed = signal(readDismissed());
+
+/**
+ * Records that the warning has already been delivered. The wizard calls this
+ * after showing it as its final step, so a new arrival is not told the same
+ * thing twice in a row.
+ */
+export function markBookmarkWarningSeen(): void {
+  try {
+    localStorage.setItem(DISMISSED_KEY, '1');
+  } catch {
+    // Private browsing can refuse writes; hiding it for this session is enough.
+  }
+  dismissed.set(true);
+}
+
+function readDismissed(): boolean {
+  try {
+    return localStorage.getItem(DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 @Component({
   selector: 'app-bookmark-notice',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,25 +61,10 @@ const DISMISSED_KEY = 'alza-watchdog.bookmark-notice-dismissed';
 export class BookmarkNoticeComponent {
   private readonly account = inject(AccountService);
 
-  private readonly dismissed = signal(readDismissed());
-
   // Pointless before an account exists, and misleading on a dead URL.
-  protected readonly visible = computed(() => !this.dismissed() && this.account.key() !== null);
+  protected readonly visible = computed(() => !dismissed() && this.account.key() !== null);
 
   protected dismiss(): void {
-    try {
-      localStorage.setItem(DISMISSED_KEY, '1');
-    } catch {
-      // Private browsing can refuse writes; hiding it for this session is enough.
-    }
-    this.dismissed.set(true);
-  }
-}
-
-function readDismissed(): boolean {
-  try {
-    return localStorage.getItem(DISMISSED_KEY) === '1';
-  } catch {
-    return false;
+    markBookmarkWarningSeen();
   }
 }

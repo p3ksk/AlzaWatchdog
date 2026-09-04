@@ -32,7 +32,7 @@ if (databaseOptions.Provider == DatabaseProvider.MySql)
 }
 else
 {
-    builder.Services.AddDbContext<AppDbContext>(o =>
+    builder.Services.AddDbContext<AppDbContext, SqliteAppDbContext>(o =>
         o.UseSqlite(connectionString ?? "Data Source=alzawatchdog.db"));
 }
 
@@ -41,6 +41,9 @@ builder.Services.Configure<DatabaseOptions>(
 
 builder.Services.Configure<WatchdogOptions>(
     builder.Configuration.GetSection(WatchdogOptions.SectionName));
+
+builder.Services.Configure<CleanupOptions>(
+    builder.Configuration.GetSection(CleanupOptions.SectionName));
 
 builder.Services.Configure<AdminOptions>(
     builder.Configuration.GetSection(AdminOptions.SectionName));
@@ -119,9 +122,31 @@ builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
 builder.Services.AddHttpClient(ProductImageCache.HttpClientName, client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
+
+    // image.alza.cz sits behind the same Cloudflare tenancy as the product pages,
+    // so this client presents itself the same way. It is only fetching images and
+    // is not blocked today, but a default .NET handshake is precisely the
+    // fingerprint that gets refused, and there is no reason to look like a bot on
+    // one Alza host while carefully not looking like one on another.
+    var headers = client.DefaultRequestHeaders;
+    headers.Add("User-Agent",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+    headers.Add("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8");
+    headers.Add("Accept-Language", "sk-SK,sk;q=0.9,en;q=0.8");
+    headers.Add("Referer", "https://www.alza.sk/");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    AutomaticDecompression = DecompressionMethods.All,
+    SslOptions = new SslClientAuthenticationOptions
+    {
+        EnabledSslProtocols = SslProtocols.Tls13,
+    },
 });
 
+builder.Services.AddSingleton<WorkerStatusRegistry>();
 builder.Services.AddHostedService<PriceCheckWorker>();
+builder.Services.AddHostedService<AccountCleanupWorker>();
 
 const string CorsPolicy = "frontend";
 builder.Services.AddCors(o => o.AddPolicy(CorsPolicy, policy => policy

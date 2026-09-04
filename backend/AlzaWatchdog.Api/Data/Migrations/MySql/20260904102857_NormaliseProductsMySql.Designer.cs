@@ -3,119 +3,145 @@ using System;
 using AlzaWatchdog.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace AlzaWatchdog.Api.Data.Migrations
+namespace AlzaWatchdog.Api.Data.Migrations.MySql
 {
-    [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(MySqlAppDbContext))]
+    [Migration("20260904102857_NormaliseProductsMySql")]
+    partial class NormaliseProductsMySql
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
+            modelBuilder
+                .HasAnnotation("ProductVersion", "10.0.11")
+                .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.PriceSnapshot", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Availability")
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("varchar(64)");
 
                     b.Property<long>("CapturedAt")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CouponPrice")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("longtext");
 
                     b.Property<string>("PlusPrice")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Price")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("longtext");
 
-                    b.Property<Guid>("TrackedItemId")
-                        .HasColumnType("TEXT");
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("char(36)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TrackedItemId", "CapturedAt");
+                    b.HasIndex("ProductId", "CapturedAt");
 
                     b.ToTable("PriceSnapshots");
+                });
+
+            modelBuilder.Entity("AlzaWatchdog.Api.Domain.Product", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CanonicalUrl")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("varchar(1024)");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("int");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(8)
+                        .HasColumnType("varchar(8)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("varchar(1024)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("LastAvailability")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<long?>("LastCheckedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("LastCouponPrice")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("LastPlusPrice")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LastPrice")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("ProductCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductCode")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "LastCheckedAt");
+
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.TrackedItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CanonicalUrl")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ConsecutiveFailures")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("char(36)");
 
                     b.Property<long>("CreatedAt")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
-                    b.Property<string>("Currency")
-                        .HasMaxLength(8)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImageUrl")
-                        .HasMaxLength(1024)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("LastAvailability")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<long?>("LastCheckedAt")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("LastCouponPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastPlusPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ProductCode")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("char(36)");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<Guid>("WatchListId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("char(36)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IsActive", "ProductCode");
+                    b.HasIndex("ProductId");
 
-                    b.HasIndex("WatchListId", "ProductCode")
+                    b.HasIndex("WatchListId", "ProductId")
                         .IsUnique();
 
                     b.ToTable("TrackedItems");
@@ -124,16 +150,16 @@ namespace AlzaWatchdog.Api.Data.Migrations
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("char(36)");
 
                     b.Property<long>("CreatedAt")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<bool>("HasAlzaPlus")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<long>("LastSeenAt")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -143,18 +169,18 @@ namespace AlzaWatchdog.Api.Data.Migrations
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.WatchList", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("char(36)");
 
                     b.Property<long>("CreatedAt")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(80)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("varchar(80)");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("char(36)");
 
                     b.HasKey("Id");
 
@@ -165,22 +191,30 @@ namespace AlzaWatchdog.Api.Data.Migrations
 
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.PriceSnapshot", b =>
                 {
-                    b.HasOne("AlzaWatchdog.Api.Domain.TrackedItem", "TrackedItem")
+                    b.HasOne("AlzaWatchdog.Api.Domain.Product", "Product")
                         .WithMany("Snapshots")
-                        .HasForeignKey("TrackedItemId")
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("TrackedItem");
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.TrackedItem", b =>
                 {
+                    b.HasOne("AlzaWatchdog.Api.Domain.Product", "Product")
+                        .WithMany("TrackedBy")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("AlzaWatchdog.Api.Domain.WatchList", "WatchList")
                         .WithMany("Items")
                         .HasForeignKey("WatchListId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Product");
 
                     b.Navigation("WatchList");
                 });
@@ -196,9 +230,11 @@ namespace AlzaWatchdog.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("AlzaWatchdog.Api.Domain.TrackedItem", b =>
+            modelBuilder.Entity("AlzaWatchdog.Api.Domain.Product", b =>
                 {
                     b.Navigation("Snapshots");
+
+                    b.Navigation("TrackedBy");
                 });
 
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.User", b =>

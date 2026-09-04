@@ -6,17 +6,25 @@ using Microsoft.Extensions.Options;
 namespace AlzaWatchdog.Api.Scraping;
 
 /// <summary>
-/// Applies a <see cref="ScrapeResult"/> to tracked items. Shared by the background
-/// sweep and the manual refresh endpoint so both record history the same way.
-/// Does not call SaveChanges — the caller decides the transaction boundary.
+/// Applies a <see cref="ScrapeResult"/> to a product. Shared by the background
+/// sweep and the add endpoint so both record history the same way. Does not call
+/// SaveChanges — the caller decides the transaction boundary.
+///
+/// Everything here is per-product, not per-list: one scrape updates the single
+/// row every watch list points at, so a product on ten lists is written once.
 /// </summary>
 public class PriceUpdateService(IOptions<WatchdogOptions> options)
 {
     private readonly WatchdogOptions _options = options.Value;
 
-    public void Apply(AppDbContext db, TrackedItem item, ScrapeResult result, DateTimeOffset now)
+    public void Apply(AppDbContext db, Product item, ScrapeResult result, DateTimeOffset now)
     {
-        item.LastCheckedAt = now;
+        // A block means we never got to look at this product, so it must stay due.
+        // Marking it checked would defer it by a whole CheckInterval and let it go
+        // quietly stale: the sweep after a block would skip it entirely, which is
+        // how a run of blocks silently drains the list of anything worth checking.
+        if (result.Status != ScrapeStatus.Blocked)
+            item.LastCheckedAt = now;
 
         if (!result.IsSuccess)
         {
@@ -40,7 +48,7 @@ public class PriceUpdateService(IOptions<WatchdogOptions> options)
         {
             db.PriceSnapshots.Add(new PriceSnapshot
             {
-                TrackedItemId = item.Id,
+                ProductId = item.Id,
                 Price = result.Price,
                 PlusPrice = result.PlusPrice,
                 CouponPrice = result.CouponPrice,
@@ -60,7 +68,7 @@ public class PriceUpdateService(IOptions<WatchdogOptions> options)
         item.ConsecutiveFailures = 0;
     }
 
-    private void RecordFailure(TrackedItem item, ScrapeResult result)
+    private void RecordFailure(Product item, ScrapeResult result)
     {
         item.LastError = result.Error ?? result.Status.ToString();
 

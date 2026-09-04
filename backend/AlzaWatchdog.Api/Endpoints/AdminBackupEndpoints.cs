@@ -72,19 +72,20 @@ public static class AdminBackupEndpoints
             .Where(u => userId == null || u.Id == userId)
             .Include(u => u.Lists)
             .ThenInclude(l => l.Items)
+            .ThenInclude(i => i.Product)
             .OrderBy(u => u.CreatedAt)
             .ToListAsync(ct);
 
-        var itemIds = users.SelectMany(u => u.Lists).SelectMany(l => l.Items).Select(i => i.Id).ToList();
+        var itemIds = users.SelectMany(u => u.Lists).SelectMany(l => l.Items).Select(i => i.ProductId).Distinct().ToList();
 
         var snapshots = itemIds.Count == 0
             ? []
             : (await db.PriceSnapshots
                 .AsNoTracking()
-                .Where(s => itemIds.Contains(s.TrackedItemId))
+                .Where(s => itemIds.Contains(s.ProductId))
                 .OrderBy(s => s.CapturedAt)
                 .ToListAsync(ct))
-              .GroupBy(s => s.TrackedItemId)
+              .GroupBy(s => s.ProductId)
               .ToDictionary(
                   g => g.Key,
                   g => (IReadOnlyList<PriceSnapshotDto>)g.Select(s => new PriceSnapshotDto(
@@ -104,21 +105,21 @@ public static class AdminBackupEndpoints
                     l.CreatedAt,
                     l.Items.OrderBy(i => i.CreatedAt).Select(i => new BackupItem(
                         i.Id,
-                        i.ProductCode,
-                        i.CanonicalUrl,
-                        i.Name,
-                        i.ImageUrl,
-                        i.Currency,
-                        i.LastPrice,
-                        i.LastPlusPrice,
-                        i.LastCouponPrice,
-                        i.LastAvailability,
-                        i.LastCheckedAt,
-                        i.LastError,
-                        i.ConsecutiveFailures,
-                        i.IsActive,
+                        i.Product.ProductCode,
+                        i.Product.CanonicalUrl,
+                        i.Product.Name,
+                        i.Product.ImageUrl,
+                        i.Product.Currency,
+                        i.Product.LastPrice,
+                        i.Product.LastPlusPrice,
+                        i.Product.LastCouponPrice,
+                        i.Product.LastAvailability,
+                        i.Product.LastCheckedAt,
+                        i.Product.LastError,
+                        i.Product.ConsecutiveFailures,
+                        i.Product.IsActive,
                         i.CreatedAt,
-                        snapshots.GetValueOrDefault(i.Id) ?? [])).ToList())).ToList())).ToList());
+                        snapshots.GetValueOrDefault(i.ProductId) ?? [])).ToList())).ToList())).ToList());
     }
 
     private static async Task<AccountImportResultDto> RestoreAsync(
@@ -126,6 +127,7 @@ public static class AdminBackupEndpoints
     {
         var existing = await db.Users.Select(u => u.Id).ToHashSetAsync(ct);
         var notes = new List<string>();
+        var products = new Dictionary<string, Product>();
         int accounts = 0, skipped = 0, lists = 0, items = 0, snapshots = 0;
 
         foreach (var account in bundle.Accounts)
@@ -162,26 +164,26 @@ public static class AdminBackupEndpoints
 
                 foreach (var item in list.Items)
                 {
+                    var (product, createdProduct) = await ProductRestore.EnsureAsync(db, products, new ProductFacts(
+                        item.ProductCode, item.CanonicalUrl, item.Name, item.ImageUrl, item.Currency,
+                        item.LastPrice, item.LastPlusPrice, item.LastCouponPrice, item.LastAvailability,
+                        item.LastCheckedAt, item.LastError, item.ConsecutiveFailures, item.IsActive,
+                        item.CreatedAt), ct);
+
                     db.TrackedItems.Add(new TrackedItem
                     {
                         Id = item.Id,
                         WatchListId = list.Id,
-                        ProductCode = item.ProductCode,
-                        CanonicalUrl = item.CanonicalUrl,
-                        Name = item.Name,
-                        ImageUrl = item.ImageUrl,
-                        Currency = item.Currency,
-                        LastPrice = item.LastPrice,
-                        LastPlusPrice = item.LastPlusPrice,
-                        LastCouponPrice = item.LastCouponPrice,
-                        LastAvailability = item.LastAvailability,
-                        LastCheckedAt = item.LastCheckedAt,
-                        LastError = item.LastError,
-                        ConsecutiveFailures = item.ConsecutiveFailures,
-                        IsActive = item.IsActive,
+                        ProductId = product.Id,
                         CreatedAt = item.CreatedAt,
                     });
                     items++;
+
+                    // History belongs to the product. A bundle carries a copy per
+                    // tracked item, so only the first entry for a product contributes
+                    // it — importing the rest would rebuild the duplication.
+                    if (!createdProduct)
+                        continue;
 
                     foreach (var snapshot in item.Snapshots)
                     {
@@ -189,7 +191,7 @@ public static class AdminBackupEndpoints
                         // so they are regenerated rather than imported.
                         db.PriceSnapshots.Add(new PriceSnapshot
                         {
-                            TrackedItemId = item.Id,
+                            ProductId = product.Id,
                             Price = snapshot.Price,
                             PlusPrice = snapshot.PlusPrice,
                             CouponPrice = snapshot.CouponPrice,

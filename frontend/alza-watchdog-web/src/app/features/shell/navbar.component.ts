@@ -44,6 +44,9 @@ export class NavbarComponent {
   protected readonly working = signal(false);
   protected readonly error = signal<string | null>(null);
 
+  /** Nothing account-shaped should be offered before an account exists. */
+  protected readonly hasAccount = computed(() => this.accountKey() !== null);
+
   protected readonly canAct = computed(() => this.accountKey() !== null && this.lists().length > 0);
 
   protected listLink(listId: string): unknown[] {

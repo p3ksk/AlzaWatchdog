@@ -17,9 +17,16 @@ namespace AlzaWatchdog.Api.Workers;
 public class PriceCheckWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<WatchdogOptions> options,
+    WorkerStatusRegistry status,
     ILogger<PriceCheckWorker> logger) : BackgroundService
 {
     private readonly WatchdogOptions _options = options.Value;
+
+    public const string WorkerName = "Price check";
+
+    private int _runs;
+    private string? _lastOutcome;
+    private DateTimeOffset? _lastRunAt;
 
     /// <summary>Floor on the sleep between sweeps, so the loop can never spin.</summary>
     private static readonly TimeSpan MinimumDelay = TimeSpan.FromSeconds(5);
@@ -29,6 +36,8 @@ public class PriceCheckWorker(
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        Report(null);
+
         if (!_options.Enabled)
         {
             logger.LogInformation("Price check worker is disabled by configuration.");
@@ -48,6 +57,9 @@ public class PriceCheckWorker(
                 // Standing down longer than usual keeps a restart loop or a bad
                 // patch from turning into sustained hammering.
                 wait = blocked ? _options.BlockedBackoff : await TimeUntilNextDueAsync(ct);
+
+                _runs++;
+                _lastRunAt = DateTimeOffset.UtcNow;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -56,10 +68,13 @@ public class PriceCheckWorker(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Price check sweep failed; retrying after the normal interval.");
+                _lastOutcome = $"Failed: {ex.Message}";
+                _lastRunAt = DateTimeOffset.UtcNow;
                 wait = _options.CheckInterval;
             }
 
             logger.LogInformation("Next sweep in {Wait}.", wait);
+            Report(DateTimeOffset.UtcNow + wait);
 
             try
             {
@@ -82,28 +97,23 @@ public class PriceCheckWorker(
 
         var due = DateTimeOffset.UtcNow - _options.CheckInterval;
 
-        // Group by product code so shared products cost one request, and skip anything
-        // checked recently — on restart this stops us re-scraping the whole list.
-        var products = await db.TrackedItems
-            .Where(i => i.IsActive)
-            .GroupBy(i => i.ProductCode)
-            .Select(g => new
-            {
-                ProductCode = g.Key,
-                // CanonicalUrl is required and groups are non-empty, so Min is never null.
-                Url = g.Min(i => i.CanonicalUrl)!,
-                LastCheckedAt = g.Min(i => i.LastCheckedAt),
-            })
-            .Where(p => p.LastCheckedAt == null || p.LastCheckedAt < due)
+        // Products are stored once and shared by every list that watches them, so
+        // "one request per product however many people track it" is now a property
+        // of the schema rather than something this query has to arrange.
+        var products = await db.Products
+            .Where(p => p.IsActive && (p.LastCheckedAt == null || p.LastCheckedAt < due))
+            .OrderBy(p => p.LastCheckedAt)
             .ToListAsync(ct);
 
         if (products.Count == 0)
         {
             logger.LogDebug("Nothing due for a price check.");
+            _lastOutcome = "Nothing was due";
             return false;
         }
 
         logger.LogInformation("Checking {Count} product(s).", products.Count);
+        _lastOutcome = $"Checked {products.Count} product(s)";
 
         var first = true;
         foreach (var product in products)
@@ -115,16 +125,8 @@ public class PriceCheckWorker(
                 await Task.Delay(NextDelay(), ct);
             first = false;
 
-            var result = await scraper.FetchAsync(product.Url, ct);
-
-            var items = await db.TrackedItems
-                .Where(i => i.IsActive && i.ProductCode == product.ProductCode)
-                .ToListAsync(ct);
-
-            var now = DateTimeOffset.UtcNow;
-            foreach (var item in items)
-                updater.Apply(db, item, result, now);
-
+            var result = await scraper.FetchAsync(product.CanonicalUrl, ct);
+            updater.Apply(db, product, result, DateTimeOffset.UtcNow);
             await db.SaveChangesAsync(ct);
 
             if (result.Status == ScrapeStatus.Blocked)
@@ -132,6 +134,7 @@ public class PriceCheckWorker(
                 logger.LogWarning(
                     "Blocked by alza.sk; abandoning this sweep and backing off for {Backoff}.",
                     _options.BlockedBackoff);
+                _lastOutcome = $"Blocked by alza.sk on {product.ProductCode}; backing off";
                 return true;
             }
         }
@@ -154,10 +157,10 @@ public class PriceCheckWorker(
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var lastChecked = await db.TrackedItems
+        var lastChecked = await db.Products
             .AsNoTracking()
-            .Where(i => i.IsActive)
-            .Select(i => i.LastCheckedAt)
+            .Where(p => p.IsActive)
+            .Select(p => p.LastCheckedAt)
             .ToListAsync(ct);
 
         if (lastChecked.Count == 0)
@@ -178,6 +181,30 @@ public class PriceCheckWorker(
 
         return wait > _options.CheckInterval ? _options.CheckInterval : wait;
     }
+
+    private void Report(DateTimeOffset? nextRunAt) =>
+        status.Set(new WorkerStatus(
+            WorkerName,
+            "Re-checks each product's price on a schedule, one request per product.",
+            _options.Enabled,
+            _lastRunAt,
+            nextRunAt,
+            _lastOutcome,
+            _runs,
+            [
+                new("Check interval", Describe(_options.CheckInterval)),
+                new("Between requests", $"{Describe(_options.DelayBetweenRequests)} + up to {Describe(_options.RequestJitter)} jitter"),
+                new("Backoff when blocked", Describe(_options.BlockedBackoff)),
+                new("Pause after failures", _options.MaxConsecutiveFailures.ToString()),
+            ]));
+
+    internal static string Describe(TimeSpan value) => value switch
+    {
+        { TotalDays: >= 1 } => $"{value.TotalDays:0.#} d",
+        { TotalHours: >= 1 } => $"{value.TotalHours:0.#} h",
+        { TotalMinutes: >= 1 } => $"{value.TotalMinutes:0.#} min",
+        _ => $"{value.TotalSeconds:0.#} s",
+    };
 
     private TimeSpan NextDelay() =>
         _options.DelayBetweenRequests

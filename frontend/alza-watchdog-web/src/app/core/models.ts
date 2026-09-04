@@ -128,3 +128,23 @@ export interface AccountImportResult {
   snapshotsImported: number;
   notes: string[];
 }
+
+export interface AdminWorkerSetting {
+  label: string;
+  value: string;
+}
+
+export interface AdminWorker {
+  name: string;
+  description: string;
+  enabled: boolean;
+  /** The worker has not completed a pass yet this process. */
+  idle: boolean;
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+  lastOutcome: string | null;
+  runs: number;
+  settings: AdminWorkerSetting[];
+  /** Live queue depths, gathered per request rather than cached by the worker. */
+  now: AdminWorkerSetting[];
+}

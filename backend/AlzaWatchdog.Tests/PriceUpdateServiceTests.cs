@@ -11,10 +11,10 @@ namespace AlzaWatchdog.Tests;
 public class PriceUpdateServiceTests : IDisposable
 {
     private readonly SqliteConnection _connection;
-    private readonly AppDbContext _db;
+    private readonly SqliteAppDbContext _db;
     private readonly PriceUpdateService _updater;
     private readonly WatchdogOptions _options = new() { MaxConsecutiveFailures = 3 };
-    private readonly TrackedItem _item;
+    private readonly Product _item;
 
     public PriceUpdateServiceTests()
     {
@@ -23,7 +23,7 @@ public class PriceUpdateServiceTests : IDisposable
         _connection = new SqliteConnection("Filename=:memory:");
         _connection.Open();
 
-        _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+        _db = new SqliteAppDbContext(new DbContextOptionsBuilder<SqliteAppDbContext>()
             .UseSqlite(_connection)
             .Options);
         _db.Database.EnsureCreated();
@@ -39,10 +39,11 @@ public class PriceUpdateServiceTests : IDisposable
             CreatedAt = Now(0),
         };
 
-        _item = new TrackedItem
+        // Prices and history belong to the product now, so that is what the
+        // update service is pointed at.
+        _item = new Product
         {
             Id = Guid.NewGuid(),
-            WatchListId = list.Id,
             ProductCode = "10818009",
             CanonicalUrl = "https://www.alza.sk/cudy-n300-wifi-router-d10818009.htm",
             CreatedAt = Now(0),
@@ -50,7 +51,14 @@ public class PriceUpdateServiceTests : IDisposable
 
         _db.Users.Add(user);
         _db.WatchLists.Add(list);
-        _db.TrackedItems.Add(_item);
+        _db.Products.Add(_item);
+        _db.TrackedItems.Add(new TrackedItem
+        {
+            Id = Guid.NewGuid(),
+            WatchListId = list.Id,
+            ProductId = _item.Id,
+            CreatedAt = Now(0),
+        });
         _db.SaveChanges();
     }
 
@@ -200,6 +208,34 @@ public class PriceUpdateServiceTests : IDisposable
     }
 
     [Fact]
+    public void Being_blocked_leaves_the_item_due()
+    {
+        Apply(Priced(18.90m), 0);
+        var checkedAt = _item.LastCheckedAt;
+
+        Apply(ScrapeResult.Failure(ScrapeStatus.Blocked, "blocked"), 10);
+
+        // We never saw the product, so it must stay due. Advancing this would hide
+        // it from the next sweep for a whole interval — a run of blocks would
+        // otherwise drain the list one product at a time.
+        Assert.Equal(checkedAt, _item.LastCheckedAt);
+        Assert.Equal("blocked", _item.LastError);
+        Assert.Single(Snapshots());
+    }
+
+    [Fact]
+    public void An_ordinary_failure_still_counts_as_a_check()
+    {
+        Apply(Priced(18.90m), 0);
+
+        Apply(ScrapeResult.Failure(ScrapeStatus.ProductNotFound, "gone"), 10);
+
+        // A 404 is information about the product, unlike a block, so the check
+        // genuinely happened and the schedule should move on.
+        Assert.Equal(Now(10), _item.LastCheckedAt);
+    }
+
+    [Fact]
     public void Being_blocked_never_deactivates_an_item()
     {
         // A block says nothing about this product — it is about us. Counting it
@@ -217,10 +253,10 @@ public class PriceUpdateServiceTests : IDisposable
         Apply(Priced(1234.56m), 0);
 
         // Re-read from the database rather than the tracked instance.
-        using var fresh = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+        using var fresh = new SqliteAppDbContext(new DbContextOptionsBuilder<SqliteAppDbContext>()
             .UseSqlite(_connection).Options);
 
-        Assert.Equal(1234.56m, fresh.TrackedItems.Single().LastPrice);
+        Assert.Equal(1234.56m, fresh.Products.Single().LastPrice);
     }
 
     public void Dispose()

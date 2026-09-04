@@ -41,17 +41,17 @@ namespace AlzaWatchdog.Api.Data.Migrations.MySql
                     b.Property<string>("Price")
                         .HasColumnType("longtext");
 
-                    b.Property<Guid>("TrackedItemId")
+                    b.Property<Guid>("ProductId")
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TrackedItemId", "CapturedAt");
+                    b.HasIndex("ProductId", "CapturedAt");
 
                     b.ToTable("PriceSnapshots");
                 });
 
-            modelBuilder.Entity("AlzaWatchdog.Api.Domain.TrackedItem", b =>
+            modelBuilder.Entity("AlzaWatchdog.Api.Domain.Product", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -107,6 +107,27 @@ namespace AlzaWatchdog.Api.Data.Migrations.MySql
                         .HasMaxLength(32)
                         .HasColumnType("varchar(32)");
 
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductCode")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "LastCheckedAt");
+
+                    b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("AlzaWatchdog.Api.Domain.TrackedItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("char(36)");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
@@ -115,9 +136,9 @@ namespace AlzaWatchdog.Api.Data.Migrations.MySql
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IsActive", "ProductCode");
+                    b.HasIndex("ProductId");
 
-                    b.HasIndex("WatchListId", "ProductCode")
+                    b.HasIndex("WatchListId", "ProductId")
                         .IsUnique();
 
                     b.ToTable("TrackedItems");
@@ -167,22 +188,30 @@ namespace AlzaWatchdog.Api.Data.Migrations.MySql
 
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.PriceSnapshot", b =>
                 {
-                    b.HasOne("AlzaWatchdog.Api.Domain.TrackedItem", "TrackedItem")
+                    b.HasOne("AlzaWatchdog.Api.Domain.Product", "Product")
                         .WithMany("Snapshots")
-                        .HasForeignKey("TrackedItemId")
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("TrackedItem");
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.TrackedItem", b =>
                 {
+                    b.HasOne("AlzaWatchdog.Api.Domain.Product", "Product")
+                        .WithMany("TrackedBy")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("AlzaWatchdog.Api.Domain.WatchList", "WatchList")
                         .WithMany("Items")
                         .HasForeignKey("WatchListId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Product");
 
                     b.Navigation("WatchList");
                 });
@@ -198,9 +227,11 @@ namespace AlzaWatchdog.Api.Data.Migrations.MySql
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("AlzaWatchdog.Api.Domain.TrackedItem", b =>
+            modelBuilder.Entity("AlzaWatchdog.Api.Domain.Product", b =>
                 {
                     b.Navigation("Snapshots");
+
+                    b.Navigation("TrackedBy");
                 });
 
             modelBuilder.Entity("AlzaWatchdog.Api.Domain.User", b =>

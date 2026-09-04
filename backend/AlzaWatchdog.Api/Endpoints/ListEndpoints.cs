@@ -119,6 +119,7 @@ public static class ListEndpoints
 
             var items = await db.TrackedItems
                 .AsNoTracking()
+                .Include(i => i.Product)
                 .Where(i => i.WatchListId == listId)
                 .OrderBy(i => i.SortOrder)
                 .ThenBy(i => i.CreatedAt)
@@ -149,7 +150,8 @@ public static class ListEndpoints
                     statusCode: StatusCodes.Status400BadRequest);
             }
 
-            if (await db.TrackedItems.AnyAsync(i => i.WatchListId == listId && i.ProductCode == product.ProductCode, ct))
+            if (await db.TrackedItems.AnyAsync(
+                    i => i.WatchListId == listId && i.Product.ProductCode == product.ProductCode, ct))
             {
                 return Results.Problem(
                     title: "Already on this list",
@@ -157,33 +159,53 @@ public static class ListEndpoints
                     statusCode: StatusCodes.Status409Conflict);
             }
 
-            // The only scrape triggered by a person: without it a new card would
-            // sit blank until the next sweep, hours later.
-            var result = await scraper.FetchAsync(product.CanonicalUrl, ct);
-
-            if (result.Status == ScrapeStatus.ProductNotFound)
-            {
-                return Results.Problem(
-                    title: "No such product",
-                    detail: "alza.sk returned 404 for this URL.",
-                    statusCode: StatusCodes.Status404NotFound);
-            }
-
-            if (result.Status == ScrapeStatus.Blocked)
-            {
-                return Results.Problem(
-                    title: "alza.sk is not answering right now",
-                    detail: "The request was blocked. Try again in a few minutes.",
-                    statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
-
             var now = DateTimeOffset.UtcNow;
+
+            // If somebody already watches this product we reuse their row, and no
+            // request to alza.sk happens at all — the sweep is already keeping it
+            // fresh for everyone. Only a product nobody has seen before costs a fetch.
+            var existing = await db.Products
+                .FirstOrDefaultAsync(p => p.ProductCode == product.ProductCode, ct);
+
+            if (existing is null)
+            {
+                // The only scrape a person can trigger: without it a new card would
+                // sit blank until the next sweep, hours later.
+                var result = await scraper.FetchAsync(product.CanonicalUrl, ct);
+
+                if (result.Status == ScrapeStatus.ProductNotFound)
+                {
+                    return Results.Problem(
+                        title: "No such product",
+                        detail: "alza.sk returned 404 for this URL.",
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+
+                if (result.Status == ScrapeStatus.Blocked)
+                {
+                    return Results.Problem(
+                        title: "alza.sk is not answering right now",
+                        detail: "The request was blocked. Try again in a few minutes.",
+                        statusCode: StatusCodes.Status503ServiceUnavailable);
+                }
+
+                existing = new Product
+                {
+                    Id = Guid.NewGuid(),
+                    ProductCode = product.ProductCode,
+                    CanonicalUrl = product.CanonicalUrl,
+                    CreatedAt = now,
+                };
+
+                db.Products.Add(existing);
+                updater.Apply(db, existing, result, now);
+            }
+
             var item = new TrackedItem
             {
                 Id = Guid.NewGuid(),
                 WatchListId = listId,
-                ProductCode = product.ProductCode,
-                CanonicalUrl = product.CanonicalUrl,
+                ProductId = existing.Id,
                 SortOrder = await db.TrackedItems
                     .Where(i => i.WatchListId == listId)
                     .MaxAsync(i => (int?)i.SortOrder, ct) + 1 ?? 0,
@@ -191,9 +213,9 @@ public static class ListEndpoints
             };
 
             db.TrackedItems.Add(item);
-            updater.Apply(db, item, result, now);
             await db.SaveChangesAsync(ct);
 
+            item.Product = existing;
             var dto = (await BuildDtosAsync(db, images, [item], ct))[0];
             return Results.Created($"/api/lists/{listId}/items/{item.Id}", dto);
         })
@@ -248,17 +270,22 @@ public static class ListEndpoints
                 return Results.NotFound();
 
             var item = await db.TrackedItems
+                .Include(i => i.Product)
                 .FirstOrDefaultAsync(i => i.Id == itemId && i.WatchListId == listId, ct);
 
             if (item is null)
                 return Results.NotFound();
 
-            // Deliberately does not scrape. Resuming only puts the item back into
+            // Deliberately does not scrape. Resuming only puts the product back into
             // the sweep, which will reach it in its own time — nothing a person
             // clicks should be able to generate traffic to alza.sk on demand.
-            item.IsActive = true;
-            item.ConsecutiveFailures = 0;
-            item.LastError = null;
+            //
+            // The failure state belongs to the product, so this un-pauses it for
+            // every list watching it. That is the right scope: a product that 404s
+            // is dead for everyone, not just for whoever noticed.
+            item.Product.IsActive = true;
+            item.Product.ConsecutiveFailures = 0;
+            item.Product.LastError = null;
             await db.SaveChangesAsync(ct);
 
             var dto = (await BuildDtosAsync(db, images, [item], ct))[0];
@@ -331,31 +358,34 @@ public static class ListEndpoints
         if (items.Count == 0)
             return [];
 
-        var ids = items.Select(i => i.Id).ToList();
+        // History hangs off the product, so two lists watching the same thing read
+        // the same rows instead of each carrying a private copy.
+        var productIds = items.Select(i => i.ProductId).Distinct().ToList();
 
         var snapshots = await db.PriceSnapshots
             .AsNoTracking()
-            .Where(s => ids.Contains(s.TrackedItemId))
+            .Where(s => productIds.Contains(s.ProductId))
             .OrderBy(s => s.CapturedAt)
             .ToListAsync(ct);
 
-        var byItem = snapshots
-            .GroupBy(s => s.TrackedItemId)
+        var byProduct = snapshots
+            .GroupBy(s => s.ProductId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         // Resolve all images concurrently. The cache dedupes repeated URLs and
         // null results, so a page full of the same product costs one download.
         var imageTasks = items
-            .Select(item => item.ImageUrl)
+            .Select(item => item.Product.ImageUrl)
+            .Where(url => url is not null)
             .Distinct()
-            .ToDictionary(url => url!, url => images.GetDataUriAsync(url));
+            .ToDictionary(url => url!, url => images.GetDataUriAsync(url!));
 
         var itemsWithImages = new List<(TrackedItem Item, string? ImageDataUri)>(items.Count);
         foreach (var item in items)
         {
-            var imageDataUri = item.ImageUrl is null
+            var imageDataUri = item.Product.ImageUrl is null
                 ? null
-                : await imageTasks[item.ImageUrl].ConfigureAwait(false);
+                : await imageTasks[item.Product.ImageUrl].ConfigureAwait(false);
             itemsWithImages.Add((item, imageDataUri));
         }
 
@@ -363,7 +393,8 @@ public static class ListEndpoints
         {
             var item = entry.Item;
             var imageDataUri = entry.ImageDataUri;
-            var history = byItem.GetValueOrDefault(item.Id) ?? [];
+            var product = item.Product;
+            var history = byProduct.GetValueOrDefault(item.ProductId) ?? [];
             var prices = history.Where(s => s.Price is not null).Select(s => s.Price!.Value).ToList();
 
             // Min/max are computed here rather than in SQL on purpose: prices are
@@ -376,23 +407,25 @@ public static class ListEndpoints
             // the newest one holds the price this item moved away from.
             var previous = history.Count > 1 ? history[^2].Price : null;
 
+            // The DTO stays flat: the id is this list's entry, everything else is
+            // the shared product, so the client never has to know they are separate.
             return new TrackedItemDto(
                 item.Id,
-                item.ProductCode,
-                item.CanonicalUrl,
-                item.Name,
+                product.ProductCode,
+                product.CanonicalUrl,
+                product.Name,
                 imageDataUri,
-                item.LastPrice,
+                product.LastPrice,
                 previous,
-                item.LastPlusPrice,
-                item.LastCouponPrice,
+                product.LastPlusPrice,
+                product.LastCouponPrice,
                 lowest,
                 highest,
-                item.Currency,
-                item.LastAvailability,
-                item.LastCheckedAt,
-                item.LastError,
-                item.IsActive,
+                product.Currency,
+                product.LastAvailability,
+                product.LastCheckedAt,
+                product.LastError,
+                product.IsActive,
                 item.SortOrder,
                 item.CreatedAt,
                 history

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { DatePipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { AccountService } from '../../core/account.service';
-import { AccountImportResult, AdminItem, AdminStats, AdminUser } from '../../core/models';
+import { AccountImportResult, AdminItem, AdminStats, AdminUser, AdminWorker } from '../../core/models';
 import { WatchdogApi, describeError } from '../../core/watchdog-api.service';
 import { compactGuid } from '../../core/guid';
 import { formatPrice, formatRelative } from '../../core/format';
@@ -22,6 +22,7 @@ export class AdminPageComponent {
   protected readonly stats = signal<AdminStats | null>(null);
   protected readonly users = signal<AdminUser[]>([]);
   protected readonly items = signal<AdminItem[]>([]);
+  protected readonly workers = signal<AdminWorker[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly denied = signal(false);
@@ -47,15 +48,17 @@ export class AdminPageComponent {
     this.error.set(null);
 
     try {
-      const [stats, users, items] = await Promise.all([
+      const [stats, users, items, workers] = await Promise.all([
         firstValueFrom(this.api.getAdminStats()),
         firstValueFrom(this.api.getAdminUsers()),
         firstValueFrom(this.api.getAdminItems()),
+        firstValueFrom(this.api.getAdminWorkers()),
       ]);
 
       this.stats.set(stats);
       this.users.set(users);
       this.items.set(items);
+      this.workers.set(workers);
       this.denied.set(false);
     } catch (error) {
       // 401/403 means this key is simply not an admin — a different message from
@@ -78,6 +81,11 @@ export class AdminPageComponent {
 
   protected ago(iso: string | null): string {
     return formatRelative(iso);
+  }
+
+  /** Blocks and failures are worth colouring; "checked 4 products" is not. */
+  protected isBadOutcome(outcome: string): boolean {
+    return /blocked|failed/i.test(outcome);
   }
 
   protected toggleItem(id: string): void {

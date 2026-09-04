@@ -35,6 +35,23 @@ public record AdminItemDto(
     DateTimeOffset CreatedAt,
     IReadOnlyList<PriceSnapshotDto> Snapshots);
 
+public record AdminWorkerSettingDto(string Label, string Value);
+
+/// <summary>One background worker, as shown in the admin section.</summary>
+public record AdminWorkerDto(
+    string Name,
+    string Description,
+    bool Enabled,
+    /// <summary>True while the worker has never reported finishing a pass.</summary>
+    bool Idle,
+    DateTimeOffset? LastRunAt,
+    DateTimeOffset? NextRunAt,
+    string? LastOutcome,
+    int Runs,
+    IReadOnlyList<AdminWorkerSettingDto> Settings,
+    /// <summary>Live context the worker itself cannot know, e.g. how much is queued.</summary>
+    IReadOnlyList<AdminWorkerSettingDto> Now);
+
 public record AdminStatsDto(
     int Users,
     int Lists,

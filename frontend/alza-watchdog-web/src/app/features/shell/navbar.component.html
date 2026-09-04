@@ -26,8 +26,10 @@
           @if (isAdmin()) {
             <a class="menu-item" [routerLink]="adminLink()" (click)="closeMenu()">Admin</a>
           }
-          <button type="button" class="menu-item" (click)="backupRequested.emit(); closeMenu()">Backup</button>
-          <button type="button" class="menu-item" (click)="keysRequested.emit(); closeMenu()">Key</button>
+          @if (hasAccount()) {
+            <button type="button" class="menu-item" (click)="backupRequested.emit(); closeMenu()">Backup</button>
+            <button type="button" class="menu-item" (click)="keysRequested.emit(); closeMenu()">Key</button>
+          }
           <button type="button" class="menu-item" (click)="toggleTheme()">
             {{ isDark() ? 'Light mode' : 'Dark mode' }}
           </button>

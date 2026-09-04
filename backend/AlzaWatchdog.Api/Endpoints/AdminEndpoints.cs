@@ -4,6 +4,7 @@ using AlzaWatchdog.Api.Contracts;
 using AlzaWatchdog.Api.Data;
 using AlzaWatchdog.Api.Domain;
 using AlzaWatchdog.Api.Workers;
+using AlzaWatchdog.Api.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -22,19 +23,61 @@ public static class AdminEndpoints
 
         group.MapGet("/stats", async (AppDbContext db, CancellationToken ct) =>
         {
-            var items = await db.TrackedItems.AsNoTracking()
-                .Select(i => new { i.ProductCode, i.IsActive })
+            var products = await db.Products.AsNoTracking()
+                .Select(p => new { p.IsActive })
                 .ToListAsync(ct);
 
             return Results.Ok(new AdminStatsDto(
                 Users: await db.Users.CountAsync(ct),
                 Lists: await db.WatchLists.CountAsync(ct),
-                Items: items.Count,
-                DistinctProducts: items.Select(i => i.ProductCode).Distinct().Count(),
+                Items: await db.TrackedItems.CountAsync(ct),
+                // Products are stored once now, so this is simply how many rows there are.
+                DistinctProducts: products.Count,
                 Snapshots: await db.PriceSnapshots.CountAsync(ct),
-                InactiveItems: items.Count(i => !i.IsActive)));
+                InactiveItems: products.Count(p => !p.IsActive)));
         })
         .WithName("AdminStats");
+
+        group.MapGet("/workers", async (
+            WorkerStatusRegistry workers, AppDbContext db, IOptions<WatchdogOptions> watchdog, CancellationToken ct) =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            var due = now - watchdog.Value.CheckInterval;
+
+            var dueNow = await db.Products.CountAsync(
+                p => p.IsActive && (p.LastCheckedAt == null || p.LastCheckedAt < due), ct);
+            var paused = await db.Products.CountAsync(p => !p.IsActive, ct);
+            var unwatched = await db.Products.CountAsync(p => !p.TrackedBy.Any(), ct);
+
+            // Queue depths are a property of the data, not of the worker, so they
+            // are gathered here rather than being stale numbers the worker cached
+            // at the end of its last pass.
+            var live = new Dictionary<string, List<AdminWorkerSettingDto>>
+            {
+                [PriceCheckWorker.WorkerName] =
+                [
+                    new("Products due now", dueNow.ToString()),
+                    new("Paused products", paused.ToString()),
+                ],
+                [AccountCleanupWorker.WorkerName] =
+                [
+                    new("Products nobody watches", unwatched.ToString()),
+                ],
+            };
+
+            return Results.Ok(workers.All().Select(w => new AdminWorkerDto(
+                w.Name,
+                w.Description,
+                w.Enabled,
+                w.LastRunAt is null,
+                w.LastRunAt,
+                w.NextRunAt,
+                w.LastOutcome,
+                w.Runs,
+                [.. w.Settings.Select(s => new AdminWorkerSettingDto(s.Label, s.Value))],
+                live.GetValueOrDefault(w.Name) ?? [])));
+        })
+        .WithName("AdminWorkers");
 
         group.MapGet("/users", async (
             AppDbContext db, IOptions<AdminOptions> options, CancellationToken ct) =>
@@ -50,7 +93,7 @@ public static class AdminEndpoints
                     u.LastSeenAt,
                     ListCount = u.Lists.Count,
                     ItemCount = u.Lists.Sum(l => l.Items.Count),
-                    SnapshotCount = u.Lists.Sum(l => l.Items.Sum(i => i.Snapshots.Count)),
+                    SnapshotCount = u.Lists.Sum(l => l.Items.Sum(i => i.Product.Snapshots.Count)),
                 })
                 .ToListAsync(ct);
 
@@ -66,10 +109,11 @@ public static class AdminEndpoints
             var items = await db.TrackedItems
                 .AsNoTracking()
                 .Include(i => i.WatchList)
-                .OrderBy(i => i.ProductCode)
+                .Include(i => i.Product)
+                .OrderBy(i => i.Product.ProductCode)
                 .ToListAsync(ct);
 
-            var snapshots = await LoadSnapshotsAsync(db, items.Select(i => i.Id).ToList(), ct);
+            var snapshots = await LoadSnapshotsAsync(db, items.Select(i => i.ProductId).Distinct().ToList(), ct);
             var interval = watchdog.Value.CheckInterval;
 
             return Results.Ok(items.Select(i => new AdminItemDto(
@@ -77,40 +121,40 @@ public static class AdminEndpoints
                 i.WatchList.UserId,
                 i.WatchListId,
                 i.WatchList.Name,
-                i.ProductCode,
-                i.CanonicalUrl,
-                i.Name,
-                i.Currency,
-                i.LastPrice,
-                i.LastPlusPrice,
-                i.LastCouponPrice,
-                i.LastAvailability,
-                i.LastCheckedAt,
-                i.IsActive && i.LastCheckedAt is { } last ? last + interval : null,
-                i.LastError,
-                i.ConsecutiveFailures,
-                i.IsActive,
+                i.Product.ProductCode,
+                i.Product.CanonicalUrl,
+                i.Product.Name,
+                i.Product.Currency,
+                i.Product.LastPrice,
+                i.Product.LastPlusPrice,
+                i.Product.LastCouponPrice,
+                i.Product.LastAvailability,
+                i.Product.LastCheckedAt,
+                i.Product.IsActive && i.Product.LastCheckedAt is { } last ? last + interval : null,
+                i.Product.LastError,
+                i.Product.ConsecutiveFailures,
+                i.Product.IsActive,
                 i.SortOrder,
                 i.CreatedAt,
-                snapshots.GetValueOrDefault(i.Id) ?? [])));
+                snapshots.GetValueOrDefault(i.ProductId) ?? [])));
         })
         .WithName("AdminItems");
     }
 
     private static async Task<Dictionary<Guid, List<PriceSnapshotDto>>> LoadSnapshotsAsync(
-        AppDbContext db, List<Guid> itemIds, CancellationToken ct)
+        AppDbContext db, List<Guid> productIds, CancellationToken ct)
     {
-        if (itemIds.Count == 0)
+        if (productIds.Count == 0)
             return [];
 
         var rows = await db.PriceSnapshots
             .AsNoTracking()
-            .Where(s => itemIds.Contains(s.TrackedItemId))
+            .Where(s => productIds.Contains(s.ProductId))
             .OrderBy(s => s.CapturedAt)
             .ToListAsync(ct);
 
         return rows
-            .GroupBy(s => s.TrackedItemId)
+            .GroupBy(s => s.ProductId)
             .ToDictionary(
                 g => g.Key,
                 g => g.Select(s => new PriceSnapshotDto(

@@ -1,0 +1,196 @@
+.hero {
+  border: 2px dashed var(--rule-strong);
+  padding: 3rem 1.5rem;
+  text-align: center;
+
+  h1 {
+    margin: 0 0 0.6rem;
+    font-size: 1.6rem;
+    letter-spacing: 0.12em;
+    color: var(--amber);
+    text-shadow: 0 0 12px var(--glow);
+  }
+
+  p {
+    margin: 0 auto 1.4rem;
+    max-width: 46ch;
+    color: var(--ink-dim);
+    font-size: 0.86rem;
+  }
+}
+
+.star {
+  opacity: 0.7;
+}
+
+dialog {
+  border: 2px solid var(--amber);
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0;
+  width: min(42rem, calc(100vw - 2rem));
+  box-shadow: 6px 6px 0 var(--rule);
+
+  &::backdrop {
+    background: rgb(0 0 0 / 0.65);
+  }
+}
+
+.wizard {
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+/* A plain numbered trail rather than a progress bar: three steps do not need
+   animation, only a sense of where you are. */
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.7rem;
+  border-bottom: 2px solid var(--rule);
+  counter-reset: step;
+
+  li {
+    counter-increment: step;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+
+    &::before {
+      content: counter(step) '. ';
+    }
+
+    &.now {
+      color: var(--amber);
+      font-weight: 700;
+    }
+
+    &.done {
+      color: var(--green);
+    }
+
+    &.done::before {
+      content: '✓ ';
+    }
+  }
+}
+
+h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--amber);
+}
+
+.points {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.84rem;
+  color: var(--ink-dim);
+}
+
+.explain {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+}
+
+.warn {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border: 2px solid var(--amber);
+  background: var(--panel-sunken);
+  font-size: 0.84rem;
+
+  strong {
+    color: var(--amber);
+  }
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+
+  input {
+    flex: 1 1 auto;
+    font-size: 0.92rem;
+  }
+
+  button {
+    white-space: nowrap;
+  }
+}
+
+.prompt {
+  display: grid;
+  place-items: center;
+  padding-inline: 0.3rem;
+  color: var(--amber);
+  font-weight: 700;
+}
+
+.value {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+
+  code {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    padding: 0.45rem 0.65rem;
+    border: 2px solid var(--rule);
+    background: var(--panel-sunken);
+    font-size: 0.82rem;
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+}
+
+.status {
+  margin: 0 0 0 1.4rem;
+  font-size: 0.78rem;
+  min-height: 1.2em;
+
+  .dim { color: var(--ink-dim); }
+  .error { color: var(--red); }
+}
+
+.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--amber);
+  text-decoration: underline;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  box-shadow: none;
+
+  &:active { transform: none; }
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
