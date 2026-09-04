@@ -13,6 +13,7 @@ import {
 import { PriceSnapshot } from '../../core/models';
 import { formatExact, formatPrice, formatRelative } from '../../core/format';
 import { monotoneCubicPath } from './smooth-path';
+import { payableAt } from '../../core/pricing';
 
 interface Plotted {
   x: number;
@@ -118,6 +119,12 @@ export class PriceChartComponent {
   readonly currency = input<string | null>(null);
   /** Adds every data point, hover readout, the low/high footer and a taller plot. */
   readonly detailed = input(false);
+  /**
+   * Whether the AlzaPlus+ price counts as payable. Passed in rather than read
+   * from the account, because the admin section draws the same chart for products
+   * belonging to other people, where no single membership applies.
+   */
+  readonly hasAlzaPlus = input(false);
 
   private readonly frame = viewChild.required<ElementRef<HTMLElement>>('frame');
   // Captured as a field: inject() is only legal here, not inside the
@@ -147,8 +154,15 @@ export class PriceChartComponent {
     });
   }
 
+  /**
+   * Each reading reduced to the price that could actually have been paid at the
+   * time, so the line matches the number on the card instead of tracking a shelf
+   * price nobody pays.
+   */
   private readonly priced = computed(() =>
-    this.history().filter((s): s is PriceSnapshot & { price: number } => s.price !== null),
+    this.history()
+      .map((snapshot) => ({ snapshot, price: payableAt(snapshot, this.hasAlzaPlus()) }))
+      .filter((reading): reading is { snapshot: PriceSnapshot; price: number } => reading.price !== null),
   );
 
   protected readonly low = computed(() => {
@@ -173,7 +187,7 @@ export class PriceChartComponent {
     const max = this.high()!;
     const span = max - min;
 
-    const times = snapshots.map((s) => new Date(s.capturedAt).getTime());
+    const times = snapshots.map((s) => new Date(s.snapshot.capturedAt).getTime());
     const firstTime = times[0];
     const timeSpan = times[times.length - 1] - firstTime;
 
@@ -183,9 +197,9 @@ export class PriceChartComponent {
     const plotWidth = Math.max(1, width - padX * 2);
     const plotHeight = Math.max(1, height - padY * 2);
 
-    return snapshots.map((snapshot, index) => ({
+    return snapshots.map(({ snapshot, price }, index) => ({
       snapshot,
-      price: snapshot.price,
+      price,
       // Spaced by when the reading happened, not by its index: snapshots are only
       // written when the price moves, so the gaps between them are uneven and
       // evenly spacing them would misrepresent how fast a price actually fell.
@@ -193,7 +207,7 @@ export class PriceChartComponent {
                                 : ((times[index] - firstTime) / timeSpan) * plotWidth),
       y: span === 0
         ? padY + plotHeight / 2
-        : padY + plotHeight - ((snapshot.price - min) / span) * plotHeight,
+        : padY + plotHeight - ((price - min) / span) * plotHeight,
     }));
   });
 

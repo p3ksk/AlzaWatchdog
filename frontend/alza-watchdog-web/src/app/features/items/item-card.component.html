@@ -26,14 +26,22 @@
     </div>
 
     <div class="pricing">
-      <p class="price">{{ priceLabel() }}</p>
+      <p class="price">
+        {{ priceLabel() }}
+        @if (shelfLabel(); as shelf) {
+          <span class="shelf" [attr.aria-label]="'Normal price ' + shelf">{{ shelf }}</span>
+        }
+      </p>
+      @if (stats().via; as via) {
+        <p class="via">{{ via }}</p>
+      }
       <p class="deltas">
         @if (changeLabel(); as change) {
-          <span class="change" [class.down]="it.priceChange! < 0" [class.up]="it.priceChange! > 0">
-            {{ it.priceChange! < 0 ? '▼' : '▲' }} {{ change }}
+          <span class="change" [class.down]="stats().change! < 0" [class.up]="stats().change! > 0">
+            {{ stats().change! < 0 ? '▼' : '▲' }} {{ change }}
           </span>
         }
-        @if (it.isAtLowest) {
+        @if (stats().isAtLowest) {
           <span class="badge best" title="Matches the cheapest price recorded">★ Cheapest yet</span>
         }
       </p>
@@ -53,7 +61,8 @@
 
   @if (it.history.length > 1 && !expanded()) {
     <div class="spark">
-      <app-price-chart [history]="it.history" [currency]="it.currency" />
+      <app-price-chart
+      [hasAlzaPlus]="hasAlzaPlus()" [history]="it.history" [currency]="it.currency" />
       @if (rangeLabel(); as range) {
         <p class="range">{{ range }}</p>
       }
@@ -100,7 +109,8 @@
 
   @if (expanded()) {
     <div class="history">
-      <app-price-chart [history]="it.history" [currency]="it.currency" [detailed]="true" />
+      <app-price-chart
+      [hasAlzaPlus]="hasAlzaPlus()" [history]="it.history" [currency]="it.currency" [detailed]="true" />
     </div>
   }
 </article>

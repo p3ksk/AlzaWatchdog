@@ -42,9 +42,15 @@ public static class AdminEndpoints
         {
             var now = DateTimeOffset.UtcNow;
             var due = now - watchdog.Value.CheckInterval;
+            var dueUnwatched = now - watchdog.Value.UnwatchedCheckInterval;
 
+            // Mirrors the sweep's own test, including the slower interval for
+            // products nobody watches. A figure counting them as due would promise
+            // work the next sweep is not going to do.
             var dueNow = await db.Products.CountAsync(
-                p => p.IsActive && (p.LastCheckedAt == null || p.LastCheckedAt < due), ct);
+                p => p.IsActive && (p.LastCheckedAt == null
+                    || (p.TrackedBy.Any() && p.LastCheckedAt < due)
+                    || (!p.TrackedBy.Any() && p.LastCheckedAt < dueUnwatched)), ct);
             var paused = await db.Products.CountAsync(p => !p.IsActive, ct);
             var unwatched = await db.Products.CountAsync(p => !p.TrackedBy.Any(), ct);
 
@@ -63,7 +69,7 @@ public static class AdminEndpoints
                 [AccountCleanupWorker.WorkerName] =
                 [
                     new("Products nobody watches", unwatched.ToString(),
-                        "Products left on no list at all, usually after the last account tracking them was removed. The next pass deletes them along with their history."),
+                        "Products left on no list at all, usually after the last account tracking them was removed. They are kept for their price history and are not deleted — the price worker just checks them on its slower interval."),
                 ],
             };
 
@@ -95,13 +101,34 @@ public static class AdminEndpoints
                     u.LastSeenAt,
                     ListCount = u.Lists.Count,
                     ItemCount = u.Lists.Sum(l => l.Items.Count),
-                    SnapshotCount = u.Lists.Sum(l => l.Items.Sum(i => i.Product.Snapshots.Count)),
                 })
                 .ToListAsync(ct);
 
+            // Snapshots hang off the product, and one account can track the same
+            // product from several of its lists — so summing over trackings counts
+            // that product's history once per list and reports more snapshots than
+            // the database holds. Each product is therefore counted once per
+            // account, which also keeps this column comparable with the total in
+            // the stats tile above it.
+            var snapshotsPerProduct = await db.PriceSnapshots
+                .AsNoTracking()
+                .GroupBy(s => s.ProductId)
+                .Select(g => new { ProductId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(g => g.ProductId, g => g.Count, ct);
+
+            var productsPerUser = (await db.TrackedItems
+                    .AsNoTracking()
+                    .Select(i => new { i.WatchList.UserId, i.ProductId })
+                    .Distinct()
+                    .ToListAsync(ct))
+                .GroupBy(x => x.UserId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.ProductId).ToList());
+
             return Results.Ok(users.Select(u => new AdminUserDto(
                 u.Id, u.HasAlzaPlus, options.Value.IsAdmin(u.Id),
-                u.ListCount, u.ItemCount, u.SnapshotCount, u.CreatedAt, u.LastSeenAt)));
+                u.ListCount, u.ItemCount,
+                productsPerUser.GetValueOrDefault(u.Id, []).Sum(id => snapshotsPerProduct.GetValueOrDefault(id)),
+                u.CreatedAt, u.LastSeenAt)));
         })
         .WithName("AdminUsers");
 

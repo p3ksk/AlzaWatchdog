@@ -13,6 +13,13 @@ import { PaginatorComponent } from '../../shared/paginator.component';
 type AdminTab = 'products' | 'accounts' | 'workers' | 'backup';
 
 /**
+ * Sort key putting the product due for a check soonest first.
+ */
+function nextCheckOrder(item: AdminItem): number {
+  return item.lastCheckedAt ? new Date(item.lastCheckedAt).getTime() : 0;
+}
+
+/**
  * Lowercases and strips accents, so "cierny" finds "čierny". Product names come
  * from alza.sk in Slovak and nobody searching an admin table types the diacritics.
  */
@@ -68,9 +75,10 @@ export class AdminPageComponent {
   });
 
   /**
-   * One row per product rather than per tracking. A product is stored once and
-   * shared, so listing it once per watching list would show the same thing several
-   * times and disagree with the "Products" figure above.
+   * One row per product rather than per tracking, ordered by how soon each is due
+   * for its next price check. A product is stored once and shared, so listing it
+   * once per watching list would show the same thing several times and disagree
+   * with the "Products" figure above.
    */
   protected readonly visibleProducts = computed(() => {
     const groups = new Map<string, { item: AdminItem; trackedBy: AdminItem[] }>();
@@ -84,7 +92,7 @@ export class AdminPageComponent {
       }
     }
 
-    return [...groups.values()];
+    return [...groups.values()].sort((a, b) => nextCheckOrder(a.item) - nextCheckOrder(b.item));
   });
 
   /**
@@ -194,6 +202,8 @@ export class AdminPageComponent {
     nextRun: 'when the worker is due to wake. It sleeps until the earliest piece of work is actually due, so this moves as work is added.',
     passes: 'Completed passes since the process last started. It resets on restart — it is not a lifetime total.',
     outcome: 'What the last completed pass reported. A block means Cloudflare refused a request and the sweep stopped early.',
+    items: 'Rows on this account\'s lists. The same product put on two lists counts twice here, because that is two things the account is watching.',
+    snaps: 'Price readings recorded for the products this account watches. Products are shared, so a product on two of its lists is still counted once — and the same history can appear under several accounts, which is why this column does not add up to the total above.',
   };
 
   protected ago(iso: string | null): string {

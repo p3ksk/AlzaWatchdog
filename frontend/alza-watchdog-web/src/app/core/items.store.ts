@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { TrackedItem } from './models';
 import { AccountService } from './account.service';
+import { priceStats } from './pricing';
 import { WatchdogApi, describeError } from './watchdog-api.service';
 
 /**
@@ -32,7 +33,10 @@ export class ItemsStore {
 
   readonly isEmpty = computed(() => this._loaded() && this._items().length === 0);
   readonly watchedCount = computed(() => this._items().length);
-  readonly atLowestCount = computed(() => this._items().filter((i) => i.isAtLowest).length);
+  readonly atLowestCount = computed(() => {
+    const plus = this.account.hasAlzaPlus();
+    return this._items().filter((item) => priceStats(item, plus).isAtLowest).length;
+  });
   readonly unavailableCount = computed(
     () => this._items().filter((i) => i.availability && i.availability !== 'InStock').length,
   );

@@ -3,6 +3,7 @@ import { AccountService } from '../../core/account.service';
 import { ClockService } from '../../core/clock.service';
 import { TrackedItem } from '../../core/models';
 import { formatAvailability, formatExact, formatPrice, formatRelative } from '../../core/format';
+import { priceStats } from '../../core/pricing';
 import { PriceChartComponent } from './price-chart.component';
 
 @Component({
@@ -31,29 +32,48 @@ export class ItemCardComponent {
     formatRelative(this.item().lastCheckedAt, this.clock.now()),
   );
 
+  /**
+   * Every price on this card, measured on what this person could actually pay —
+   * the members' price only counts for a member. Recomputed when the AlzaPlus+
+   * switch moves, so the card answers the new question immediately rather than
+   * waiting for the next load.
+   */
+  protected readonly hasAlzaPlus = this.account.hasAlzaPlus;
+
+  protected readonly stats = computed(() => priceStats(this.item(), this.hasAlzaPlus()));
+
   protected readonly priceLabel = computed(() =>
-    formatPrice(this.item().currentPrice, this.item().currency),
+    formatPrice(this.stats().value, this.item().currency),
   );
+
+  /** The price the discount is measured against, shown struck through beside it. */
+  protected readonly shelfLabel = computed(() => {
+    const { value, shelf } = this.stats();
+    return shelf !== null && value !== null && value < shelf
+      ? formatPrice(shelf, this.item().currency)
+      : null;
+  });
 
   /** Signed change against the previous reading, e.g. "−2,40 €". */
   protected readonly changeLabel = computed(() => {
-    const { priceChange, currency } = this.item();
-    if (priceChange === null || priceChange === 0) {
+    const { change } = this.stats();
+    if (change === null || change === 0) {
       return null;
     }
 
-    return (priceChange > 0 ? '+' : '−') + formatPrice(Math.abs(priceChange), currency);
+    return (change > 0 ? '+' : '−') + formatPrice(Math.abs(change), this.item().currency);
   });
 
   /**
-   * The discounts worth showing under the headline price. Each is only listed
-   * when it actually beats the normal price, so a card never carries a row that
-   * says nothing.
+   * The discount that is not already leading the card. Showing the winner again
+   * underneath would just repeat the headline; showing the loser tells you what
+   * else this product offers.
    */
   protected readonly offers = computed(() => {
     const { currency, currentPrice, plusPrice, couponPrice } = this.item();
+    const winner = this.stats().via;
 
-    const beatsNormalPrice = (value: number | null): value is number =>
+    const beatsShelfPrice = (value: number | null): value is number =>
       value !== null && (currentPrice === null || value < currentPrice);
 
     return [
@@ -62,19 +82,19 @@ export class ItemCardComponent {
       { label: 'AlzaPlus+', price: this.account.hasAlzaPlus() ? plusPrice : null },
       { label: 'With code', price: couponPrice },
     ]
-      .filter((offer) => beatsNormalPrice(offer.price))
+      .filter((offer) => offer.label !== winner && beatsShelfPrice(offer.price))
       .map((offer) => ({ label: offer.label, value: formatPrice(offer.price, currency) }));
   });
 
   protected readonly rangeLabel = computed(() => {
-    const { lowestPrice, highestPrice, currency, history } = this.item();
+    const { lowest, highest } = this.stats();
 
     // A single reading makes a range meaningless — there is nothing to compare to.
-    if (history.length < 2 || lowestPrice === null || highestPrice === null) {
+    if (this.item().history.length < 2 || lowest === null || highest === null) {
       return null;
     }
 
-    return `${formatPrice(lowestPrice, currency)} – ${formatPrice(highestPrice, currency)}`;
+    return `${formatPrice(lowest, this.item().currency)} – ${formatPrice(highest, this.item().currency)}`;
   });
 
   protected readonly availabilityLabel = computed(() => formatAvailability(this.item().availability));

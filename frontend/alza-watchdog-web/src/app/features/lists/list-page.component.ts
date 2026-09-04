@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AccountService } from '../../core/account.service';
 import { ItemsStore } from '../../core/items.store';
+import { payable, priceStats, quoteOf } from '../../core/pricing';
 import { TrackedItem } from '../../core/models';
 import { describeError } from '../../core/watchdog-api.service';
 import { compactGuid, expandGuid } from '../../core/guid';
@@ -76,15 +77,19 @@ export class ListPageComponent {
     switch (this.sort()) {
       case 'recent':
         return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      case 'drop':
+      case 'drop': {
         // Rises and unchanged prices sink below every drop, so the reason you
         // opened the page is at the top.
-        return items.sort((a, b) => rank(a) - rank(b));
+        const plus = this.account.hasAlzaPlus();
+        return items.sort((a, b) => rank(a, plus) - rank(b, plus));
+      }
       case 'cheapest': {
         // Sorts by what you could actually pay, so a product that is only cheap
         // behind a discount you cannot use does not jump the queue.
         const plus = this.account.hasAlzaPlus();
-        return items.sort((a, b) => nullsLast(bestPrice(a, plus)) - nullsLast(bestPrice(b, plus)));
+        return items.sort(
+          (a, b) => nullsLast(payable(quoteOf(a), plus).value) - nullsLast(payable(quoteOf(b), plus).value),
+        );
       }
       case 'name':
         return items.sort((a, b) => (a.name ?? a.url).localeCompare(b.name ?? b.url));
@@ -282,17 +287,9 @@ export class ListPageComponent {
   }
 }
 
-/** The least this item can be had for, given whether AlzaPlus+ applies. */
-function bestPrice(item: TrackedItem, hasAlzaPlus: boolean): number | null {
-  const candidates = [item.currentPrice, item.couponPrice, hasAlzaPlus ? item.plusPrice : null]
-    .filter((p): p is number => p !== null);
-
-  return candidates.length > 0 ? Math.min(...candidates) : null;
-}
-
 /** Sorts real drops first, then unchanged, then rises, then unknowns. */
-function rank(item: TrackedItem): number {
-  return item.priceChange ?? Number.POSITIVE_INFINITY;
+function rank(item: TrackedItem, hasAlzaPlus: boolean): number {
+  return priceStats(item, hasAlzaPlus).change ?? Number.POSITIVE_INFINITY;
 }
 
 function nullsLast(value: number | null): number {

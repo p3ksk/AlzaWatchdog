@@ -14,13 +14,10 @@ export interface TrackedItem {
   /** Product image as a cached data URI, so the browser never hits the CDN directly. */
   imageDataUri: string | null;
   currentPrice: number | null;
-  previousPrice: number | null;
   /** Cheaper price for AlzaPlus+ members, when this product offers one. */
   plusPrice: number | null;
   /** Price with a discount code applied, when this product offers one. */
   couponPrice: number | null;
-  lowestPrice: number | null;
-  highestPrice: number | null;
   currency: string | null;
   availability: string | null;
   lastCheckedAt: string | null;
@@ -29,12 +26,12 @@ export interface TrackedItem {
   /** Position in the user's manual order. Zero-based; ties fall back to creation order. */
   sortOrder: number;
   createdAt: string;
-  /** Oldest first. Enough to draw the card's chart without a second request. */
+  /**
+   * Oldest first. Enough to draw the card's chart without a second request, and
+   * the source for every derived figure — see `core/pricing.ts`, which measures
+   * them on the price this reader could actually pay.
+   */
   history: PriceSnapshot[];
-  /** Positive when the price rose, negative on a drop, null when unknown. */
-  priceChange: number | null;
-  /** The current price ties the cheapest ever recorded. */
-  isAtLowest: boolean;
 }
 
 export interface WatchList {

@@ -97,13 +97,21 @@ public class PriceCheckWorker(
         var scraper = scope.ServiceProvider.GetRequiredService<IAlzaScraper>();
         var updater = scope.ServiceProvider.GetRequiredService<PriceUpdateService>();
 
-        var due = DateTimeOffset.UtcNow - _options.CheckInterval;
+        var now = DateTimeOffset.UtcNow;
+        var due = now - _options.CheckInterval;
+        var dueUnwatched = now - _options.UnwatchedCheckInterval;
 
         // Products are stored once and shared by every list that watches them, so
         // "one request per product however many people track it" is now a property
         // of the schema rather than something this query has to arrange.
+        //
+        // A product nobody watches is kept for its history but falls to the slower
+        // interval — written as two branches rather than a conditional so it is
+        // plainly translatable to SQL on both providers.
         var products = await db.Products
-            .Where(p => p.IsActive && (p.LastCheckedAt == null || p.LastCheckedAt < due))
+            .Where(p => p.IsActive && (p.LastCheckedAt == null
+                || (p.TrackedBy.Any() && p.LastCheckedAt < due)
+                || (!p.TrackedBy.Any() && p.LastCheckedAt < dueUnwatched)))
             .OrderBy(p => p.LastCheckedAt)
             .ToListAsync(ct);
 
@@ -184,29 +192,36 @@ public class PriceCheckWorker(
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var lastChecked = await db.Products
+        var products = await db.Products
             .AsNoTracking()
             .Where(p => p.IsActive)
-            .Select(p => p.LastCheckedAt)
+            .Select(p => new { p.LastCheckedAt, Watched = p.TrackedBy.Any() })
             .ToListAsync(ct);
 
-        if (lastChecked.Count == 0)
+        if (products.Count == 0)
             return _options.CheckInterval;
 
         // Anything never checked is due immediately.
-        if (lastChecked.Any(t => t is null))
+        if (products.Any(p => p.LastCheckedAt is null))
             return MinimumDelay;
 
-        // Aim a moment past the due time. Landing exactly on it would leave the
-        // sweep's own "older than CheckInterval" test true only by sub-millisecond
+        // Each product carries its own interval now, so the earliest due time is
+        // not simply the oldest reading: an unwatched product checked an hour ago
+        // is further from due than a watched one checked five hours ago.
+        //
+        // Aim a moment past it. Landing exactly on the due time would leave the
+        // sweep's own "older than the interval" test true only by sub-millisecond
         // margins — the same boundary that caused the skipping in the first place.
-        var nextDue = lastChecked.Min()!.Value + _options.CheckInterval + DueGrace;
+        var nextDue = products.Min(p => p.LastCheckedAt!.Value + Interval(p.Watched)) + DueGrace;
         var wait = nextDue - DateTimeOffset.UtcNow;
 
         if (wait < MinimumDelay)
             return MinimumDelay;
 
-        return wait > _options.CheckInterval ? _options.CheckInterval : wait;
+        // Capped at the longest interval in play, so a list of nothing but
+        // unwatched products does not wake the worker every six hours for nothing.
+        var cap = Interval(false) > Interval(true) ? Interval(false) : Interval(true);
+        return wait > cap ? cap : wait;
     }
 
     private void Report(DateTimeOffset? nextRunAt) =>
@@ -221,6 +236,8 @@ public class PriceCheckWorker(
             [
                 new("Check interval", Describe(_options.CheckInterval),
                     "How old a product's last check has to be before the worker fetches it again. The worker sleeps until the earliest product is actually due, not on a fixed timer."),
+                new("Unwatched products", Describe(_options.UnwatchedCheckInterval),
+                    "A product no list watches any more is kept for its price history, but nobody is waiting on the next reading — so it is checked on this slower interval instead."),
                 new("Between requests", $"{Describe(_options.DelayBetweenRequests)} + up to {Describe(_options.RequestJitter)} jitter",
                     "Pause after each product page, plus a random extra, so a sweep reaches alza.sk as a trickle rather than a burst."),
                 new("Backoff when blocked", Describe(_options.BlockedBackoff),
@@ -232,6 +249,9 @@ public class PriceCheckWorker(
                 new("Pause after failures", _options.MaxConsecutiveFailures.ToString(),
                     "After this many failed checks in a row a product is deactivated and stops being fetched, until someone resumes it from their list."),
             ]));
+
+    private TimeSpan Interval(bool watched) =>
+        watched ? _options.CheckInterval : _options.UnwatchedCheckInterval;
 
     internal static string Describe(TimeSpan value) => value switch
     {

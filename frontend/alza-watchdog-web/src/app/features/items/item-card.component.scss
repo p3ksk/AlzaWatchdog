@@ -107,6 +107,24 @@
   color: var(--ink);
 }
 
+/* The shelf price the discount is measured against. Struck through and quiet, so
+   the number you would actually pay stays the one the eye lands on. */
+.shelf {
+  margin-left: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-dim);
+  text-decoration: line-through;
+}
+
+.via {
+  margin: 0.1rem 0 0;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
 .deltas {
   display: flex;
   justify-content: flex-end;

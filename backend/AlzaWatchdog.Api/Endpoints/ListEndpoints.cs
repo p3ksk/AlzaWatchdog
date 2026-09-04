@@ -395,17 +395,6 @@ public static class ListEndpoints
             var imageDataUri = entry.ImageDataUri;
             var product = item.Product;
             var history = byProduct.GetValueOrDefault(item.ProductId) ?? [];
-            var prices = history.Where(s => s.Price is not null).Select(s => s.Price!.Value).ToList();
-
-            // Min/max are computed here rather than in SQL on purpose: prices are
-            // stored as text, so a SQL MIN would compare them lexicographically and
-            // decide that "9.90" is dearer than "18.90". See DecimalAsTextConverter.
-            decimal? lowest = prices.Count > 0 ? prices.Min() : null;
-            decimal? highest = prices.Count > 0 ? prices.Max() : null;
-
-            // Snapshots are only written when something changed, so the row before
-            // the newest one holds the price this item moved away from.
-            var previous = history.Count > 1 ? history[^2].Price : null;
 
             // The DTO stays flat: the id is this list's entry, everything else is
             // the shared product, so the client never has to know they are separate.
@@ -416,11 +405,8 @@ public static class ListEndpoints
                 product.Name,
                 imageDataUri,
                 product.LastPrice,
-                previous,
                 product.LastPlusPrice,
                 product.LastCouponPrice,
-                lowest,
-                highest,
                 product.Currency,
                 product.LastAvailability,
                 product.LastCheckedAt,

@@ -52,6 +52,11 @@
   clip-path: none;
 }
 
+.tip.below .bubble {
+  bottom: auto;
+  top: calc(100% + 0.45rem);
+}
+
 /* Set by the component once it has measured the bubble against the viewport. */
 .tip.flip .bubble {
   left: auto;

@@ -7,6 +7,13 @@ public class WatchdogOptions
     /// <summary>How long to wait between full sweeps of every tracked product.</summary>
     public TimeSpan CheckInterval { get; set; } = TimeSpan.FromHours(6);
 
+    /// <summary>
+    /// The same, for a product no list watches any more. Its history is kept in
+    /// case someone tracks it again, but nobody is waiting on the next reading, so
+    /// it is looked at far less often.
+    /// </summary>
+    public TimeSpan UnwatchedCheckInterval { get; set; } = TimeSpan.FromDays(1);
+
     /// <summary>Base pause between two product requests within a sweep; jitter is added on top.</summary>
     public TimeSpan DelayBetweenRequests { get; set; } = TimeSpan.FromSeconds(5);
 

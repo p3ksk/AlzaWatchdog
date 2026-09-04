@@ -47,19 +47,38 @@ public class PriceCheckWorkerTests : IDisposable
         scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
     }
 
-    private void AddProduct(string code)
+    private void AddProduct(string code, DateTimeOffset? lastCheckedAt = null, bool watched = true)
     {
         using var scope = _services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        db.Products.Add(new Product
+        var product = new Product
         {
             Id = Guid.NewGuid(),
             ProductCode = code,
             CanonicalUrl = $"https://www.alza.sk/x-d{code}.htm",
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow,
-        });
+            LastCheckedAt = lastCheckedAt,
+        };
+
+        db.Products.Add(product);
+
+        if (watched)
+        {
+            var userId = Guid.NewGuid();
+            var listId = Guid.NewGuid();
+
+            db.Users.Add(new User { Id = userId, CreatedAt = DateTimeOffset.UtcNow, LastSeenAt = DateTimeOffset.UtcNow });
+            db.WatchLists.Add(new WatchList { Id = listId, UserId = userId, Name = "List", CreatedAt = DateTimeOffset.UtcNow });
+            db.TrackedItems.Add(new TrackedItem
+            {
+                Id = Guid.NewGuid(),
+                WatchListId = listId,
+                ProductId = product.Id,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+        }
 
         db.SaveChanges();
     }
@@ -142,6 +161,60 @@ public class PriceCheckWorkerTests : IDisposable
         // Stamping LastCheckedAt on a block would defer the product by a whole
         // interval, so a run of blocks would quietly drain the sweep.
         Assert.Null(product.LastCheckedAt);
+    }
+
+    [Fact]
+    public async Task Checks_a_watched_product_on_the_normal_interval()
+    {
+        // Older than the six-hour interval, so it is due; and younger than a day,
+        // so it would not be due if it were treated as unwatched.
+        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-7), watched: true);
+        _scraper.Enqueue(Success(10m));
+
+        await CreateWorker().RunSweepAsync(CancellationToken.None);
+
+        Assert.Equal(1, _scraper.Calls);
+    }
+
+    [Fact]
+    public async Task Leaves_an_unwatched_product_alone_until_its_slower_interval()
+    {
+        // The same age, but nobody watches it: seven hours is past the six-hour
+        // interval and well short of the daily one, so it must be left alone.
+        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-7), watched: false);
+
+        var blocked = await CreateWorker().RunSweepAsync(CancellationToken.None);
+
+        Assert.False(blocked);
+        Assert.Equal(0, _scraper.Calls);
+    }
+
+    [Fact]
+    public async Task Checks_an_unwatched_product_once_its_day_is_up()
+    {
+        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-25), watched: false);
+        _scraper.Enqueue(Success(10m));
+
+        await CreateWorker().RunSweepAsync(CancellationToken.None);
+
+        Assert.Equal(1, _scraper.Calls);
+    }
+
+    [Fact]
+    public async Task An_unwatched_product_keeps_its_history()
+    {
+        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-25), watched: false);
+        _scraper.Enqueue(Success(10m));
+
+        await CreateWorker().RunSweepAsync(CancellationToken.None);
+
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // The point of keeping the product at all: whoever tracks it next inherits
+        // a chart rather than starting from nothing.
+        Assert.Single(db.PriceSnapshots.ToList());
+        Assert.Single(db.Products.ToList());
     }
 
     public void Dispose()

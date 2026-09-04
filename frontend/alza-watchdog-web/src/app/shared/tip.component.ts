@@ -22,6 +22,7 @@ import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core
       [class.bare]="!text()"
       [class.plain]="!underline()"
       [class.flip]="flip()"
+      [class.below]="below()"
       [attr.tabindex]="text() ? 0 : null"
       (pointerenter)="place($event.target)"
       (focus)="place($event.target)"
@@ -34,6 +35,12 @@ export class TipComponent {
 
   /** Off when the wrapped element already looks interactive, such as a badge. */
   readonly underline = input(true);
+
+  /**
+   * Opens downwards. Needed inside a scrolling container: a table that scrolls
+   * sideways clips vertically too, so a bubble above the header row is invisible.
+   */
+  readonly below = input(false);
 
   protected readonly flip = signal(false);
 

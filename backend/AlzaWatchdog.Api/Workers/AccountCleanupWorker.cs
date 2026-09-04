@@ -14,8 +14,10 @@ namespace AlzaWatchdog.Api.Workers;
 /// back to it is a bookmarked URL, it may legitimately go untouched for months; it
 /// gets a far longer grace period.
 ///
-/// Deleting a user cascades to their lists, items and price history through the
-/// foreign keys, so one delete is enough.
+/// Deleting a user cascades to their lists and items through the foreign keys, so
+/// one delete is enough. It deliberately stops there: products are shared and hold
+/// the price history, so one is kept even after the last list watching it goes,
+/// and simply checked less often.
 /// </summary>
 public class AccountCleanupWorker(
     IServiceScopeFactory scopeFactory,
@@ -86,7 +88,7 @@ public class AccountCleanupWorker(
     private void Report(DateTimeOffset? nextRunAt) =>
         status.Set(new WorkerStatus(
             WorkerName,
-            "Removes abandoned accounts, and any product left with nobody watching it.",
+            "Removes abandoned accounts. Products are kept, however few lists watch them.",
             _options.Enabled,
             _lastRunAt,
             nextRunAt,
@@ -164,21 +166,19 @@ public class AccountCleanupWorker(
             deleted += await db.Users.Where(u => ids.Contains(u.Id)).ExecuteDeleteAsync(ct);
         }
 
-        // Products outlive the lists that referenced them, so a purge can leave
-        // rows nobody watches. They would otherwise be swept forever, costing
-        // requests to alza.sk for nobody's benefit.
-        var orphans = await db.Products
-            .Where(p => !p.TrackedBy.Any())
-            .ExecuteDeleteAsync(ct);
+        // Products deliberately outlive the lists that referenced them. Deleting a
+        // product throws away its price history, and the next person to track the
+        // same thing would start from a blank chart; keeping it costs one row and
+        // one request a day. PriceCheckWorker drops those products to a slower
+        // cadence so they are cheap to carry.
 
         // Logged at Information because it is destructive and irreversible: if an
         // account vanishes, this line is the only record that it was deliberate.
         logger.LogInformation(
             "Account cleanup deleted {Total} account(s): {Empty} empty (idle since before {EmptyCutoff:u}), " +
-            "{WithProducts} with products (idle since before {InactiveCutoff:u}). " +
-            "Also removed {Orphans} product(s) nobody watches.",
-            deleted, empty, emptyCutoff, doomed.Count - empty, inactiveCutoff, orphans);
+            "{WithProducts} with products (idle since before {InactiveCutoff:u}).",
+            deleted, empty, emptyCutoff, doomed.Count - empty, inactiveCutoff);
 
-        _lastOutcome = $"Deleted {deleted} account(s) and {orphans} unwatched product(s)";
+        _lastOutcome = $"Deleted {deleted} account(s)";
     }
 }

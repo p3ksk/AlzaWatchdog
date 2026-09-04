@@ -153,9 +153,13 @@ public class AccountCleanupTests : IDisposable
         Assert.Empty(_db.TrackedItems.ToList());
 
         // The product survives on purpose: it is shared, so deleting one account
-        // must not remove something another account may still be watching. The
-        // cleanup worker sweeps up products nobody tracks separately.
+        // must not remove something another account may still be watching — and it
+        // is kept even once nobody watches it, so its price history is still there
+        // for whoever tracks it next.
         Assert.Single(_db.Products.ToList());
+
+        // Its history goes with the product, not with the account that had it.
+        Assert.Single(_db.PriceSnapshots.ToList());
     }
 
     public void Dispose()
