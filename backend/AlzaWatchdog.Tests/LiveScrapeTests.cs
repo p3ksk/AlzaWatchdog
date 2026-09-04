@@ -59,7 +59,10 @@ public class LiveScrapeTests
     {
         var handler = new SocketsHttpHandler
         {
-            AutomaticDecompression = DecompressionMethods.All,
+            // None, not All: All adds an Accept-Encoding header, which is refused
+            // outright from some IPs. See the note in Program.cs — and keep the two
+            // in step, or this test stops testing what the app actually does.
+            AutomaticDecompression = DecompressionMethods.None,
             CookieContainer = new CookieContainer(),
             UseCookies = true,
             SslOptions = new SslClientAuthenticationOptions

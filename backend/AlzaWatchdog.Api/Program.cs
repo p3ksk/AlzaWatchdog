@@ -107,7 +107,17 @@ builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
 })
 .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
-    AutomaticDecompression = DecompressionMethods.All,
+    // Deliberately no AutomaticDecompression, which would add an Accept-Encoding
+    // header. Measured from a datacenter IP where every scrape was being refused:
+    // with "gzip, deflate, br" (what .NET sends) 0 of 5 requests got through, with
+    // Chrome 131's exact "gzip, deflate, br, zstd" also 0 of 5, and with the header
+    // absent 5 of 5 succeeded. Same host, same headers, same minute. From a
+    // residential IP all three pass, which is why this only shows up in production.
+    //
+    // So it is not an identity mismatch to fix by matching Chrome more closely —
+    // the header's presence is itself what draws the challenge there. The cost is
+    // an uncompressed page, a few hundred kilobytes a handful of times a day.
+    AutomaticDecompression = DecompressionMethods.None,
     CookieContainer = alzaCookies,
     UseCookies = true,
     SslOptions = new SslClientAuthenticationOptions
