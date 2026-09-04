@@ -137,29 +137,14 @@ public class PriceCheckWorker(
                 await Task.Delay(NextDelay(), ct);
             first = false;
 
-            var result = await scraper.FetchAsync(product.CanonicalUrl, ct);
-
-            // A sweep's opening request goes out with a cold cookie jar, which is
-            // the state Cloudflare challenges: measured from this host, ten
-            // consecutive fetches holding __cf_bm and _cfuvid were all let
-            // through, while cookie-less ones in the same minute were turned away.
-            // Standing down for half an hour over that costs a whole sweep, so the
-            // opening challenge buys exactly one retry — by which point the jar has
-            // whatever the refusal handed back. A block once the jar is warm is a
-            // different signal and still stands the sweep down.
-            if (result.Status == ScrapeStatus.Blocked && opening && _options.ChallengeRetryDelay > TimeSpan.Zero)
-            {
-                logger.LogInformation(
-                    "Opening request was challenged; retrying once in {Delay}.",
-                    _options.ChallengeRetryDelay);
-
-                await Task.Delay(_options.ChallengeRetryDelay, ct);
-                result = await scraper.FetchAsync(product.CanonicalUrl, ct);
-
-                // Logged either way: this line is the only evidence of whether the
-                // retry is worth making.
-                logger.LogInformation("Retry after the opening challenge: {Status}.", result.Status);
-            }
+            // Only the sweep's opening request gets the retry. It goes out with a
+            // cold cookie jar, which is the state Cloudflare challenges; a block
+            // once the jar is warm is a different signal and still stands the
+            // sweep down rather than spending another request on it.
+            var result = opening
+                ? await ChallengeRetry.FetchAsync(
+                    scraper, product.CanonicalUrl, _options.ChallengeRetryDelay, logger, ct)
+                : await scraper.FetchAsync(product.CanonicalUrl, ct);
 
             updater.Apply(db, product, result, DateTimeOffset.UtcNow);
             await db.SaveChangesAsync(ct);
@@ -246,6 +231,10 @@ public class PriceCheckWorker(
                         ? $"after {Describe(_options.ChallengeRetryDelay)}"
                         : "off",
                     "A sweep's first request carries no Cloudflare cookies yet and is the one most likely to be challenged. That first refusal buys one retry instead of costing the whole sweep; a refusal later in the sweep does not."),
+                new("Retry when adding", _options.InteractiveChallengeRetryDelay > TimeSpan.Zero
+                        ? $"after {Describe(_options.InteractiveChallengeRetryDelay)}"
+                        : "off",
+                    "The same single retry for the scrape someone triggers by adding a product. Shorter, because a person is waiting on it rather than a background sweep."),
                 new("Pause after failures", _options.MaxConsecutiveFailures.ToString(),
                     "After this many failed checks in a row a product is deactivated and stops being fetched, until someone resumes it from their list."),
             ]));

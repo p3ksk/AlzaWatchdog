@@ -1,5 +1,6 @@
 using AlzaWatchdog.Api.Admin;
 using AlzaWatchdog.Api.Scraping;
+using AlzaWatchdog.Api.Workers;
 using AlzaWatchdog.Api.Auth;
 using AlzaWatchdog.Api.Contracts;
 using AlzaWatchdog.Api.Data;
@@ -51,6 +52,8 @@ public static class UserEndpoints
             IAlzaScraper scraper,
             PriceUpdateService updater,
             IOptions<AdminOptions> admin,
+            IOptions<WatchdogOptions> watchdog,
+            ILoggerFactory loggers,
             CancellationToken ct) =>
         {
             if (!AlzaUrl.TryParse(request.Url, out var parsed))
@@ -68,7 +71,12 @@ public static class UserEndpoints
 
             if (product is null)
             {
-                var result = await scraper.FetchAsync(parsed.CanonicalUrl, ct);
+                // One retry, as when adding to an existing list: this is the first
+                // thing a new account ever does, and a challenge here means someone
+                // is turned away before they have an account at all.
+                var result = await ChallengeRetry.FetchAsync(
+                    scraper, parsed.CanonicalUrl, watchdog.Value.InteractiveChallengeRetryDelay,
+                    loggers.CreateLogger(typeof(ChallengeRetry)), ct);
 
                 if (result.Status == ScrapeStatus.ProductNotFound)
                 {

@@ -4,7 +4,9 @@ using AlzaWatchdog.Api.Data;
 using AlzaWatchdog.Api.Domain;
 using AlzaWatchdog.Api.Images;
 using AlzaWatchdog.Api.Scraping;
+using AlzaWatchdog.Api.Workers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AlzaWatchdog.Api.Endpoints;
 
@@ -137,6 +139,8 @@ public static class ListEndpoints
             IAlzaScraper scraper,
             PriceUpdateService updater,
             ProductImageCache images,
+            IOptions<WatchdogOptions> watchdog,
+            ILoggerFactory loggers,
             CancellationToken ct) =>
         {
             if (!await OwnsListAsync(db, http, listId, ct))
@@ -170,8 +174,13 @@ public static class ListEndpoints
             if (existing is null)
             {
                 // The only scrape a person can trigger: without it a new card would
-                // sit blank until the next sweep, hours later.
-                var result = await scraper.FetchAsync(product.CanonicalUrl, ct);
+                // sit blank until the next sweep, hours later. It gets the same one
+                // retry as a sweep — this is usually the first request in a while,
+                // so it is exactly the one Cloudflare is most likely to challenge,
+                // and failing here is a person being told "no" for no good reason.
+                var result = await ChallengeRetry.FetchAsync(
+                    scraper, product.CanonicalUrl, watchdog.Value.InteractiveChallengeRetryDelay,
+                    loggers.CreateLogger(typeof(ChallengeRetry)), ct);
 
                 if (result.Status == ScrapeStatus.ProductNotFound)
                 {

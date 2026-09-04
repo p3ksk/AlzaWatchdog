@@ -29,6 +29,13 @@ public class WatchdogOptions
     /// </summary>
     public TimeSpan ChallengeRetryDelay { get; set; } = TimeSpan.FromSeconds(15);
 
+    /// <summary>
+    /// The same, for the scrape someone triggers by adding a product. Shorter,
+    /// because a person is watching a spinner rather than a log file. Set to zero
+    /// to disable the retry.
+    /// </summary>
+    public TimeSpan InteractiveChallengeRetryDelay { get; set; } = TimeSpan.FromSeconds(3);
+
     /// <summary>Failures in a row before an item is deactivated. Blocks do not count.</summary>
     public int MaxConsecutiveFailures { get; set; } = 10;
 
