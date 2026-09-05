@@ -29,7 +29,6 @@ public record ScrapeResult(
     string? Currency = null,
     string? Availability = null,
     string? ImageUrl = null,
-    string? Sku = null,
     string? Error = null)
 {
     public bool IsSuccess => Status == ScrapeStatus.Success;

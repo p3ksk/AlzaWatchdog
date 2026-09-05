@@ -13,7 +13,8 @@ import { PaginatorComponent } from '../../shared/paginator.component';
 type AdminTab = 'products' | 'accounts' | 'workers' | 'backup';
 
 /**
- * Sort key putting the product due for a check soonest first.
+ * Soonest due first. One shared interval means ordering by last check is the same
+ * as ordering by next check, without the page knowing what the interval is.
  */
 function nextCheckOrder(item: AdminItem): number {
   return item.lastCheckedAt ? new Date(item.lastCheckedAt).getTime() : 0;
@@ -75,10 +76,8 @@ export class AdminPageComponent {
   });
 
   /**
-   * One row per product rather than per tracking, ordered by how soon each is due
-   * for its next price check. A product is stored once and shared, so listing it
-   * once per watching list would show the same thing several times and disagree
-   * with the "Products" figure above.
+   * One row per product rather than per tracking, soonest due first. Products are
+   * shared, so per-tracking rows would repeat and disagree with the tile above.
    */
   protected readonly visibleProducts = computed(() => {
     const groups = new Map<string, { item: AdminItem; trackedBy: AdminItem[] }>();
@@ -189,11 +188,7 @@ export class AdminPageComponent {
     return formatPrice(value, currency);
   }
 
-  /**
-   * Explanations for the parts of a worker card the frontend draws itself. The
-   * per-setting hints come from the worker that reports them instead, so they
-   * stay with the value they describe.
-   */
+  /** Explanations the frontend owns; per-setting hints come from the workers. */
   protected readonly tips = {
     running: 'The worker is scheduled and will act at the time shown. Turn it off in configuration, not here.',
     disabled: 'Switched off in configuration. It still reports its settings, but it will never act.',

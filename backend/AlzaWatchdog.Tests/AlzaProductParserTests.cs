@@ -14,7 +14,6 @@ public class AlzaProductParserTests
         Assert.Equal(18.90m, result.Price);
         Assert.Equal("EUR", result.Currency);
         Assert.Equal("InStock", result.Availability);   // schema.org prefix stripped
-        Assert.Equal("CUD21k63", result.Sku);
         Assert.StartsWith("https://image.alza.cz/", result.ImageUrl);
     }
 

@@ -15,8 +15,6 @@ public record AdminUserDto(
 public record AdminItemDto(
     Guid Id,
     Guid UserId,
-    Guid ListId,
-    string ListName,
     string ProductCode,
     string Url,
     string? Name,
@@ -24,15 +22,10 @@ public record AdminItemDto(
     decimal? LastPrice,
     decimal? LastPlusPrice,
     decimal? LastCouponPrice,
-    string? LastAvailability,
     DateTimeOffset? LastCheckedAt,
-    /// <summary>Estimated next sweep time, derived from the last check plus the configured interval. Null when the item is paused.</summary>
-    DateTimeOffset? NextCheckAt,
     string? LastError,
     int ConsecutiveFailures,
     bool IsActive,
-    int SortOrder,
-    DateTimeOffset CreatedAt,
     IReadOnlyList<PriceSnapshotDto> Snapshots);
 
 public record AdminWorkerSettingDto(string Label, string Value, string? Hint);

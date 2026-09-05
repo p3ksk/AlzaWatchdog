@@ -29,6 +29,7 @@ public class PriceCheckWorkerTests : IDisposable
         DelayBetweenRequests = TimeSpan.Zero,
         RequestJitter = TimeSpan.Zero,
         ChallengeRetryDelay = TimeSpan.FromMilliseconds(1),
+        SweepWindow = TimeSpan.FromMinutes(5),
     };
 
     public PriceCheckWorkerTests()
@@ -164,49 +165,17 @@ public class PriceCheckWorkerTests : IDisposable
     }
 
     [Fact]
-    public async Task Checks_a_watched_product_on_the_normal_interval()
+    public async Task Checks_a_product_nobody_watches_like_any_other()
     {
-        // Older than the six-hour interval, so it is due; and younger than a day,
-        // so it would not be due if it were treated as unwatched.
-        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-7), watched: true);
-        _scraper.Enqueue(Success(10m));
-
-        await CreateWorker().RunSweepAsync(CancellationToken.None);
-
-        Assert.Equal(1, _scraper.Calls);
-    }
-
-    [Fact]
-    public async Task Leaves_an_unwatched_product_alone_until_its_slower_interval()
-    {
-        // The same age, but nobody watches it: seven hours is past the six-hour
-        // interval and well short of the daily one, so it must be left alone.
+        // Kept for its history when the last list dropped it, and checked on the
+        // same schedule as everything else — a second interval for these was more
+        // machinery than one request every six hours is worth.
         AddProduct("111", DateTimeOffset.UtcNow.AddHours(-7), watched: false);
-
-        var blocked = await CreateWorker().RunSweepAsync(CancellationToken.None);
-
-        Assert.False(blocked);
-        Assert.Equal(0, _scraper.Calls);
-    }
-
-    [Fact]
-    public async Task Checks_an_unwatched_product_once_its_day_is_up()
-    {
-        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-25), watched: false);
         _scraper.Enqueue(Success(10m));
 
         await CreateWorker().RunSweepAsync(CancellationToken.None);
 
         Assert.Equal(1, _scraper.Calls);
-    }
-
-    [Fact]
-    public async Task An_unwatched_product_keeps_its_history()
-    {
-        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-25), watched: false);
-        _scraper.Enqueue(Success(10m));
-
-        await CreateWorker().RunSweepAsync(CancellationToken.None);
 
         using var scope = _services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -215,6 +184,47 @@ public class PriceCheckWorkerTests : IDisposable
         // a chart rather than starting from nothing.
         Assert.Single(db.PriceSnapshots.ToList());
         Assert.Single(db.Products.ToList());
+    }
+
+    [Fact]
+    public async Task Leaves_a_product_that_is_not_yet_due()
+    {
+        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-1));
+
+        var blocked = await CreateWorker().RunSweepAsync(CancellationToken.None);
+
+        Assert.False(blocked);
+        Assert.Equal(0, _scraper.Calls);
+    }
+
+    [Fact]
+    public async Task Sweeps_products_due_near_each_other_together()
+    {
+        // Staggered by seconds, exactly as a previous sweep would have left them.
+        // Each is due at a slightly different moment, and checking them in three
+        // separate sweeps would skip the pause between requests altogether.
+        var checkedAt = DateTimeOffset.UtcNow.AddHours(-6);
+        AddProduct("111", checkedAt);
+        AddProduct("222", checkedAt.AddSeconds(6));
+        AddProduct("333", checkedAt.AddSeconds(12));
+        _scraper.Enqueue(Success(10m), Success(20m), Success(30m));
+
+        await CreateWorker().RunSweepAsync(CancellationToken.None);
+
+        Assert.Equal(3, _scraper.Calls);
+    }
+
+    [Fact]
+    public async Task Leaves_a_product_that_is_not_nearly_due()
+    {
+        AddProduct("111", DateTimeOffset.UtcNow.AddHours(-6));
+        // An hour short of due is well outside the window and must wait.
+        AddProduct("222", DateTimeOffset.UtcNow.AddHours(-5));
+        _scraper.Enqueue(Success(10m));
+
+        await CreateWorker().RunSweepAsync(CancellationToken.None);
+
+        Assert.Equal(1, _scraper.Calls);
     }
 
     public void Dispose()
@@ -243,6 +253,5 @@ public class PriceCheckWorkerTests : IDisposable
             return Task.FromResult(_results.Count > 0
                 ? _results.Dequeue()
                 : throw new InvalidOperationException("The sweep made more requests than the test prepared."));
-        }
-    }
+        }    }
 }

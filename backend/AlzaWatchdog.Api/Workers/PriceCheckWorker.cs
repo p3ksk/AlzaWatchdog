@@ -9,12 +9,10 @@ namespace AlzaWatchdog.Api.Workers;
 /// <summary>
 /// The watchdog itself: re-checks every tracked product on an interval.
 ///
-/// alza.sk rate-limits aggressively, so the sweep is deliberately slow and serial.
-/// Requests are grouped by product code — a product watched by ten users still costs
-/// exactly one request — and spaced with jitter. A block aborts the whole sweep
-/// rather than pushing through it, save for one retry of the opening request,
-/// which is challenged often enough that treating it as fatal loses sweeps to a
-/// site that is answering perfectly well.
+/// Deliberately slow and serial: one request per product however many lists watch
+/// it, spaced with jitter. A block aborts the sweep, save for one retry of the
+/// opening request, which is challenged often enough that treating it as fatal
+/// loses sweeps to a site that is answering perfectly well.
 /// </summary>
 public class PriceCheckWorker(
     IServiceScopeFactory scopeFactory,
@@ -32,9 +30,6 @@ public class PriceCheckWorker(
 
     /// <summary>Floor on the sleep between sweeps, so the loop can never spin.</summary>
     private static readonly TimeSpan MinimumDelay = TimeSpan.FromSeconds(5);
-
-    /// <summary>Overshoot past an item's due time, to stay clear of the boundary.</summary>
-    private static readonly TimeSpan DueGrace = TimeSpan.FromSeconds(2);
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -97,21 +92,14 @@ public class PriceCheckWorker(
         var scraper = scope.ServiceProvider.GetRequiredService<IAlzaScraper>();
         var updater = scope.ServiceProvider.GetRequiredService<PriceUpdateService>();
 
-        var now = DateTimeOffset.UtcNow;
-        var due = now - _options.CheckInterval;
-        var dueUnwatched = now - _options.UnwatchedCheckInterval;
+        // Anything falling due within the window comes along with this sweep, so
+        // products stay batched instead of each drifting onto its own schedule.
+        var due = DateTimeOffset.UtcNow - _options.CheckInterval + _options.SweepWindow;
 
-        // Products are stored once and shared by every list that watches them, so
-        // "one request per product however many people track it" is now a property
-        // of the schema rather than something this query has to arrange.
-        //
-        // A product nobody watches is kept for its history but falls to the slower
-        // interval — written as two branches rather than a conditional so it is
-        // plainly translatable to SQL on both providers.
+        // A product nobody watches is kept for its history and checked like any
+        // other; one request an interval is not worth a second schedule.
         var products = await db.Products
-            .Where(p => p.IsActive && (p.LastCheckedAt == null
-                || (p.TrackedBy.Any() && p.LastCheckedAt < due)
-                || (!p.TrackedBy.Any() && p.LastCheckedAt < dueUnwatched)))
+            .Where(p => p.IsActive && (p.LastCheckedAt == null || p.LastCheckedAt < due))
             .OrderBy(p => p.LastCheckedAt)
             .ToListAsync(ct);
 
@@ -137,10 +125,8 @@ public class PriceCheckWorker(
                 await Task.Delay(NextDelay(), ct);
             first = false;
 
-            // Only the sweep's opening request gets the retry. It goes out with a
-            // cold cookie jar, which is the state Cloudflare challenges; a block
-            // once the jar is warm is a different signal and still stands the
-            // sweep down rather than spending another request on it.
+            // Only the opening request retries: it goes out with a cold cookie jar,
+            // the state Cloudflare challenges. A later block is a different signal.
             var result = opening
                 ? await ChallengeRetry.FetchAsync(
                     scraper, product.CanonicalUrl, _options.ChallengeRetryDelay, logger, ct)
@@ -163,50 +149,44 @@ public class PriceCheckWorker(
     }
 
     /// <summary>
-    /// How long to sleep before the next sweep: until the earliest item actually
-    /// falls due, rather than a fixed period from process start.
-    ///
-    /// Those are not the same thing, and treating them as the same was a real bug.
-    /// An item checked a few minutes after a sweep is still short of due at the
-    /// following one, gets skipped, and then waits a whole extra interval — so a
-    /// six-hour setting silently became up to twelve. Waking when something is due
-    /// also makes the "next scan" time shown in the UI true rather than a guess.
+    /// Sleeps until the earliest product actually falls due, not a fixed period
+    /// from process start. Treating those as the same made a six-hour interval
+    /// behave like twelve, because an item checked minutes after a sweep was still
+    /// short of due at the next one and waited a whole extra interval.
     /// </summary>
     private async Task<TimeSpan> TimeUntilNextDueAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var products = await db.Products
+        var lastChecked = await db.Products
             .AsNoTracking()
             .Where(p => p.IsActive)
-            .Select(p => new { p.LastCheckedAt, Watched = p.TrackedBy.Any() })
+            .Select(p => p.LastCheckedAt)
             .ToListAsync(ct);
 
-        if (products.Count == 0)
+        if (lastChecked.Count == 0)
             return _options.CheckInterval;
 
         // Anything never checked is due immediately.
-        if (products.Any(p => p.LastCheckedAt is null))
+        if (lastChecked.Any(t => t is null))
             return MinimumDelay;
 
-        // Each product carries its own interval now, so the earliest due time is
-        // not simply the oldest reading: an unwatched product checked an hour ago
-        // is further from due than a watched one checked five hours ago.
-        //
-        // Aim a moment past it. Landing exactly on the due time would leave the
-        // sweep's own "older than the interval" test true only by sub-millisecond
-        // margins — the same boundary that caused the skipping in the first place.
-        var nextDue = products.Min(p => p.LastCheckedAt!.Value + Interval(p.Watched)) + DueGrace;
+        // A window early, matching what the sweep selects by, so whatever the
+        // worker wakes for is certain to qualify.
+        var nextDue = lastChecked.Min()!.Value + _options.CheckInterval - _options.SweepWindow;
         var wait = nextDue - DateTimeOffset.UtcNow;
 
-        if (wait < MinimumDelay)
-            return MinimumDelay;
+        // Two sweeps in a row are two requests, so they are held to the same pause
+        // as two requests inside one sweep.
+        var floor = _options.DelayBetweenRequests > MinimumDelay
+            ? _options.DelayBetweenRequests
+            : MinimumDelay;
 
-        // Capped at the longest interval in play, so a list of nothing but
-        // unwatched products does not wake the worker every six hours for nothing.
-        var cap = Interval(false) > Interval(true) ? Interval(false) : Interval(true);
-        return wait > cap ? cap : wait;
+        if (wait < floor)
+            return floor;
+
+        return wait > _options.CheckInterval ? _options.CheckInterval : wait;
     }
 
     private void Report(DateTimeOffset? nextRunAt) =>
@@ -221,10 +201,10 @@ public class PriceCheckWorker(
             [
                 new("Check interval", Describe(_options.CheckInterval),
                     "How old a product's last check has to be before the worker fetches it again. The worker sleeps until the earliest product is actually due, not on a fixed timer."),
-                new("Unwatched products", Describe(_options.UnwatchedCheckInterval),
-                    "A product no list watches any more is kept for its price history, but nobody is waiting on the next reading — so it is checked on this slower interval instead."),
                 new("Between requests", $"{Describe(_options.DelayBetweenRequests)} + up to {Describe(_options.RequestJitter)} jitter",
-                    "Pause after each product page, plus a random extra, so a sweep reaches alza.sk as a trickle rather than a burst."),
+                    "Pause after each product page, plus a random extra, so a sweep reaches alza.sk as a trickle rather than a burst. It also floors the gap between two sweeps, since those are two requests just the same."),
+                new("Swept together", Describe(_options.SweepWindow),
+                    "Products falling due within this long of each other are checked in one sweep. Without it each product drifts onto its own schedule, sweeps end up carrying a single product, and the pause above — which only applies between products in one sweep — never happens."),
                 new("Backoff when blocked", Describe(_options.BlockedBackoff),
                     "When Cloudflare refuses a request the rest of the sweep is abandoned and the worker waits this long. Products it never reached stay due, so nothing is skipped."),
                 new("Retry opening challenge", _options.ChallengeRetryDelay > TimeSpan.Zero
@@ -238,9 +218,6 @@ public class PriceCheckWorker(
                 new("Pause after failures", _options.MaxConsecutiveFailures.ToString(),
                     "After this many failed checks in a row a product is deactivated and stops being fetched, until someone resumes it from their list."),
             ]));
-
-    private TimeSpan Interval(bool watched) =>
-        watched ? _options.CheckInterval : _options.UnwatchedCheckInterval;
 
     internal static string Describe(TimeSpan value) => value switch
     {

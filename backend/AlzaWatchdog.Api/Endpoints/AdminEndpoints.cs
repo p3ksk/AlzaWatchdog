@@ -40,17 +40,13 @@ public static class AdminEndpoints
         group.MapGet("/workers", async (
             WorkerStatusRegistry workers, AppDbContext db, IOptions<WatchdogOptions> watchdog, CancellationToken ct) =>
         {
-            var now = DateTimeOffset.UtcNow;
-            var due = now - watchdog.Value.CheckInterval;
-            var dueUnwatched = now - watchdog.Value.UnwatchedCheckInterval;
+            // Mirrors the sweep's own test, window included. A figure counting
+            // products the next sweep will not touch would promise work that is
+            // not going to happen.
+            var due = DateTimeOffset.UtcNow - watchdog.Value.CheckInterval + watchdog.Value.SweepWindow;
 
-            // Mirrors the sweep's own test, including the slower interval for
-            // products nobody watches. A figure counting them as due would promise
-            // work the next sweep is not going to do.
             var dueNow = await db.Products.CountAsync(
-                p => p.IsActive && (p.LastCheckedAt == null
-                    || (p.TrackedBy.Any() && p.LastCheckedAt < due)
-                    || (!p.TrackedBy.Any() && p.LastCheckedAt < dueUnwatched)), ct);
+                p => p.IsActive && (p.LastCheckedAt == null || p.LastCheckedAt < due), ct);
             var paused = await db.Products.CountAsync(p => !p.IsActive, ct);
             var unwatched = await db.Products.CountAsync(p => !p.TrackedBy.Any(), ct);
 
@@ -69,7 +65,7 @@ public static class AdminEndpoints
                 [AccountCleanupWorker.WorkerName] =
                 [
                     new("Products nobody watches", unwatched.ToString(),
-                        "Products left on no list at all, usually after the last account tracking them was removed. They are kept for their price history and are not deleted — the price worker just checks them on its slower interval."),
+                        "Products left on no list at all, usually after the last account tracking them was removed. They are kept for their price history and are not deleted, and are checked on the same schedule as any other product."),
                 ],
             };
 
@@ -104,12 +100,9 @@ public static class AdminEndpoints
                 })
                 .ToListAsync(ct);
 
-            // Snapshots hang off the product, and one account can track the same
-            // product from several of its lists — so summing over trackings counts
-            // that product's history once per list and reports more snapshots than
-            // the database holds. Each product is therefore counted once per
-            // account, which also keeps this column comparable with the total in
-            // the stats tile above it.
+            // Counted once per account: one account can track the same product from
+            // several lists, and summing over trackings reported more snapshots
+            // than the database holds.
             var snapshotsPerProduct = await db.PriceSnapshots
                 .AsNoTracking()
                 .GroupBy(s => s.ProductId)
@@ -132,8 +125,7 @@ public static class AdminEndpoints
         })
         .WithName("AdminUsers");
 
-        group.MapGet("/items", async (
-            AppDbContext db, IOptions<WatchdogOptions> watchdog, CancellationToken ct) =>
+        group.MapGet("/items", async (AppDbContext db, CancellationToken ct) =>
         {
             var items = await db.TrackedItems
                 .AsNoTracking()
@@ -143,13 +135,10 @@ public static class AdminEndpoints
                 .ToListAsync(ct);
 
             var snapshots = await LoadSnapshotsAsync(db, items.Select(i => i.ProductId).Distinct().ToList(), ct);
-            var interval = watchdog.Value.CheckInterval;
 
             return Results.Ok(items.Select(i => new AdminItemDto(
                 i.Id,
                 i.WatchList.UserId,
-                i.WatchListId,
-                i.WatchList.Name,
                 i.Product.ProductCode,
                 i.Product.CanonicalUrl,
                 i.Product.Name,
@@ -157,14 +146,10 @@ public static class AdminEndpoints
                 i.Product.LastPrice,
                 i.Product.LastPlusPrice,
                 i.Product.LastCouponPrice,
-                i.Product.LastAvailability,
                 i.Product.LastCheckedAt,
-                i.Product.IsActive && i.Product.LastCheckedAt is { } last ? last + interval : null,
                 i.Product.LastError,
                 i.Product.ConsecutiveFailures,
                 i.Product.IsActive,
-                i.SortOrder,
-                i.CreatedAt,
                 snapshots.GetValueOrDefault(i.ProductId) ?? [])));
         })
         .WithName("AdminItems");

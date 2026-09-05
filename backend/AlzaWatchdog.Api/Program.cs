@@ -53,54 +53,31 @@ builder.Services.AddScoped<AdminFilter>();
 builder.Services.AddScoped<PriceUpdateService>();
 builder.Services.AddSingleton<ProductImageCache>();
 
-// ---------------------------------------------------------------------------
-// alza.sk sits behind Cloudflare bot management, which fingerprints the TLS
-// ClientHello. Two things about this client are load-bearing — both verified
-// against the live site — and changing either turns every scrape into a 403:
+// alza.sk is behind Cloudflare bot management. Four things here are load-bearing,
+// all measured against the live site (see README and scripts/cf-probe*.sh):
 //
-//   1. A single pinned TLS version. A client that offers the usual wide range
-//      of versions produces a ClientHello that Cloudflare recognises as a bot
-//      and rejects, reproducibly and regardless of headers. Advertising only
-//      TLS 1.3 is accepted just as reproducibly. The HTTP version is NOT the
-//      factor here — HTTP/1.1 and HTTP/2 both work once TLS is pinned.
-//   2. A complete, realistic browser header set. A bare "Mozilla/5.0" gets
-//      blocked; the full Chrome User-Agent plus the Accept/Sec-Fetch headers a
-//      real navigation sends does not.
+//   1. TLS 1.3 pinned. A wider version range is refused whatever the headers say.
+//      The HTTP version is not a factor.
+//   2. The sec-ch-ua and Sec-Fetch-* headers. Without them: 403, challenge.
+//   3. No Accept-Encoding at all. From a datacenter IP, 0 of 10 requests carrying
+//      it got through — Chrome's own value included — against 5 of 5 without.
+//   4. TryAddWithoutValidation, never Add: Add re-serialises parsed headers and
+//      inserts spaces Chrome does not send.
 //
-// The cookie container matters too: Cloudflare hands back __cf_bm and _cfuvid on
-// a request it lets through, and replaying them keeps us from being judged on the
-// handshake alone next time. Measured: a client holding those cookies fetched the
-// same page ten times in a row without a single challenge, while cookie-less
-// requests from the same host in the same minute were challenged twice.
-//
-// The jar therefore lives out here rather than inside the handler factory below.
-// HttpClientFactory rotates the primary handler every two minutes, so a jar
-// created in there is empty again long before the next six-hourly sweep — every
-// sweep would open with the one request most likely to be challenged, and a
-// single challenge abandons the whole sweep.
-// ---------------------------------------------------------------------------
+// The cookie jar lives out here because HttpClientFactory rotates the handler
+// every two minutes, and a jar created in the factory would be empty again long
+// before the next sweep.
 var alzaCookies = new CookieContainer();
 
-// Kept in a variable so the request log can report what the transport adds by
-// itself, rather than a comment claiming it.
+// In a variable so the request log can report it rather than claim it.
 var alzaDecompression = DecompressionMethods.None;
 
 builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
 
-    // Measured against the live site: User-Agent + Accept + Accept-Language alone
-    // is answered with 403 and "Cf-Mitigated: challenge"; adding the sec-ch-ua and
-    // Sec-Fetch-* headers below returns 200 from the same IP seconds later. The
-    // fuller Client Hints Cloudflare advertises in Critical-CH (arch, bitness,
-    // model, full-version-list) made no difference, so they are not sent.
-    // TryAddWithoutValidation throughout, never Add. Add parses a known header and
-    // re-serialises it from the parsed value, which inserts a space after every
-    // comma and semicolon: "application/xml; q=0.9" where Chrome sends
-    // "application/xml;q=0.9". That leaves us claiming to be Chrome 131 in
-    // sec-ch-ua while formatting our headers in a way Chrome never does, and the
-    // difference is plain in the bytes. This way the strings go out exactly as
-    // written here.
+    // Cloudflare also advertises arch, bitness and model in Critical-CH; sending
+    // those made no difference, so they are not sent.
     var headers = client.DefaultRequestHeaders;
     headers.TryAddWithoutValidation("User-Agent",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
@@ -118,23 +95,13 @@ builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
 })
 .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
-    // Deliberately no AutomaticDecompression, which would add an Accept-Encoding
-    // header. Measured from a datacenter IP where every scrape was being refused:
-    // with "gzip, deflate, br" (what .NET sends) 0 of 5 requests got through, with
-    // Chrome 131's exact "gzip, deflate, br, zstd" also 0 of 5, and with the header
-    // absent 5 of 5 succeeded. Same host, same headers, same minute. From a
-    // residential IP all three pass, which is why this only shows up in production.
-    //
-    // So it is not an identity mismatch to fix by matching Chrome more closely —
-    // the header's presence is itself what draws the challenge there. The cost is
-    // an uncompressed page, a few hundred kilobytes a handful of times a day.
+    // None, not All: All would add Accept-Encoding. See point 3 above.
     AutomaticDecompression = alzaDecompression,
     CookieContainer = alzaCookies,
     UseCookies = true,
     SslOptions = new SslClientAuthenticationOptions
     {
-        // See the note above: this single line is the difference between every
-        // scrape succeeding and every scrape returning 403.
+        // Point 1 above: this line alone decides 200 versus 403.
         EnabledSslProtocols = SslProtocols.Tls13,
     },
 })

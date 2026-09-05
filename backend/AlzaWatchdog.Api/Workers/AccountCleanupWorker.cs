@@ -14,10 +14,9 @@ namespace AlzaWatchdog.Api.Workers;
 /// back to it is a bookmarked URL, it may legitimately go untouched for months; it
 /// gets a far longer grace period.
 ///
-/// Deleting a user cascades to their lists and items through the foreign keys, so
-/// one delete is enough. It deliberately stops there: products are shared and hold
-/// the price history, so one is kept even after the last list watching it goes,
-/// and simply checked less often.
+/// Deleting a user cascades to their lists and items, and stops there: products
+/// are shared and hold the price history, so they are kept even once nobody
+/// watches them.
 /// </summary>
 public class AccountCleanupWorker(
     IServiceScopeFactory scopeFactory,
@@ -166,11 +165,8 @@ public class AccountCleanupWorker(
             deleted += await db.Users.Where(u => ids.Contains(u.Id)).ExecuteDeleteAsync(ct);
         }
 
-        // Products deliberately outlive the lists that referenced them. Deleting a
-        // product throws away its price history, and the next person to track the
-        // same thing would start from a blank chart; keeping it costs one row and
-        // one request a day. PriceCheckWorker drops those products to a slower
-        // cadence so they are cheap to carry.
+        // Products outlive the lists that referenced them: deleting one throws away
+        // its history, and the next person to track it would start from a blank chart.
 
         // Logged at Information because it is destructive and irreversible: if an
         // account vanishes, this line is the only record that it was deliberate.

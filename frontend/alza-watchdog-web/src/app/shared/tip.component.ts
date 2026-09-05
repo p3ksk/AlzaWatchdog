@@ -1,17 +1,11 @@
 import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
 
 /**
- * Wraps a label in a hover/focus explanation.
+ * Wraps a label in a hover/focus explanation. A real element rather than `title`,
+ * which is slow, unstyleable and invisible to a keyboard.
  *
- * The text is a real element rather than a `title` attribute: the native tooltip
- * takes a second to appear, cannot be styled to match the terminal, and never
- * shows on a keyboard focus. Keeping it in the DOM also means a screen reader
- * reads the explanation straight after the label it belongs to.
- *
- * With no text it renders as a bare wrapper, so callers can pass an optional hint
- * without guarding it. There is deliberately only one `<ng-content>`: projected
- * content has a single home, so putting one in each branch of an `@if` leaves the
- * label to vanish into the branch that is not rendered.
+ * Only one `<ng-content>`: projected content has a single home, so one in each
+ * branch of an `@if` leaves the label to vanish into the branch not rendered.
  */
 @Component({
   selector: 'app-tip',
@@ -44,18 +38,14 @@ export class TipComponent {
 
   protected readonly flip = signal(false);
 
-  /**
-   * A bubble on the last column of a grid would run off the screen, so it is
-   * measured as it opens and anchored to whichever edge leaves it on the page.
-   */
+  /** Anchors to whichever edge keeps the bubble on the page. */
   protected place(target: EventTarget | null): void {
     const tip = target as HTMLElement | null;
     const bubble = tip?.querySelector('.bubble');
     if (!tip || !bubble) return;
 
-    // Measured from the anchor, not from the bubble: the bubble has already moved
-    // if this tip is flipped, so measuring it would flip back and forth on every
-    // second hover.
+    // From the anchor, not the bubble: a flipped bubble has already moved, so
+    // measuring it would flip back on every second hover.
     this.flip.set(tip.getBoundingClientRect().left + bubble.scrollWidth + 8 > window.innerWidth);
   }
 }

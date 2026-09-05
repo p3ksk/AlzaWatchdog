@@ -91,6 +91,5 @@ public class ChallengeRetryTests
             return Task.FromResult(_results.Count > 0
                 ? _results.Dequeue()
                 : throw new InvalidOperationException("More requests were made than the test prepared."));
-        }
-    }
+        }    }
 }

@@ -88,8 +88,6 @@ export interface AdminUser {
 export interface AdminItem {
   id: string;
   userId: string;
-  listId: string;
-  listName: string;
   productCode: string;
   url: string;
   name: string | null;
@@ -97,15 +95,10 @@ export interface AdminItem {
   lastPrice: number | null;
   lastPlusPrice: number | null;
   lastCouponPrice: number | null;
-  lastAvailability: string | null;
   lastCheckedAt: string | null;
-  /** Estimated next sweep time; null when the item is paused. */
-  nextCheckAt: string | null;
   lastError: string | null;
   consecutiveFailures: number;
   isActive: boolean;
-  sortOrder: number;
-  createdAt: string;
   snapshots: PriceSnapshot[];
 }
 

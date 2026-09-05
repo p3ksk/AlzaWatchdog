@@ -76,4 +76,5 @@ public class AlzaScraper(HttpClient http, ILogger<AlzaScraper> logger) : IAlzaSc
             return ScrapeResult.Failure(ScrapeStatus.TransientError, $"Network error: {ex.Message}");
         }
     }
+
 }

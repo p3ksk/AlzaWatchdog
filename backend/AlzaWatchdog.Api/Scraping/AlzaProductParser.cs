@@ -7,10 +7,8 @@ namespace AlzaWatchdog.Api.Scraping;
 /// <summary>
 /// Pulls product data out of an alza.sk detail page.
 ///
-/// Product pages carry a schema.org JSON-LD block that already holds everything we
-/// need — name, sku, image, and an offer with price, currency and availability. We
-/// read only that. CSS selectors against the rendered markup would break on the next
-/// redesign; the JSON-LD is there for search engines and is far more stable.
+/// Only the schema.org JSON-LD block is read — name, image, price, currency,
+/// availability. CSS selectors against the markup would break on the next redesign.
 /// </summary>
 public static class AlzaProductParser
 {
@@ -28,11 +26,7 @@ public static class AlzaProductParser
 
     private const string SchemaPrefix = "https://schema.org/";
 
-    /// <summary>
-    /// alza.sk's design system tags its price boxes with data-slot attributes.
-    /// Those are a component contract rather than styling, so they survive
-    /// redesigns far better than the hashed CSS classes around them.
-    /// </summary>
+    /// <summary>data-slot is a component contract, so it outlives the hashed CSS classes.</summary>
     private const string PriceBoxTitle = "[data-slot=\"pb-title\"]";
     private const string PriceBoxPrice = "[data-slot=\"pb-price\"]";
 
@@ -114,12 +108,9 @@ public static class AlzaProductParser
     }
 
     /// <summary>
-    /// Finds the AlzaPlus+ members' price, if the page offers one.
-    ///
-    /// The page renders several price boxes that share the same data-slot names,
-    /// so the AlzaPlus+ one is identified by its own heading ("-10 % s AlzaPlus+")
-    /// and the price is then read from that box only. A plain text search for
-    /// "AlzaPlus" would match the site navigation on every product page.
+    /// The AlzaPlus+ price, found by its own heading ("-10 % s AlzaPlus+") because
+    /// the price boxes share data-slot names and a plain text search for
+    /// "AlzaPlus" would match the navigation on every page.
     /// </summary>
     private static decimal? ReadPlusPrice(IDocument document, decimal? regularPrice)
     {
@@ -146,7 +137,6 @@ public static class AlzaProductParser
     private static ScrapeResult ReadProduct(JsonElement product)
     {
         var name = GetString(product, "name");
-        var sku = GetString(product, "sku");
         var imageUrl = ReadImage(product);
 
         decimal? price = null;
@@ -181,8 +171,7 @@ public static class AlzaProductParser
             CouponPrice: couponPrice,
             Currency: currency,
             Availability: availability,
-            ImageUrl: imageUrl,
-            Sku: sku);
+            ImageUrl: imageUrl);
     }
 
     /// <summary>

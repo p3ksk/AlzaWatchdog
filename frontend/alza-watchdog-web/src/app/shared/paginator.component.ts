@@ -1,11 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 /**
- * Page controls for a long admin list.
- *
- * The page number is owned by the caller rather than held here: filtering and
- * searching have to reset it, and a control that kept its own state would keep
- * showing page 7 of a list that is now two pages long.
+ * Page controls for a long admin list. The page number belongs to the caller:
+ * filtering and searching reset it, and a control holding its own state would sit
+ * on page 7 of a list that is now two pages long.
  */
 @Component({
   selector: 'app-paginator',

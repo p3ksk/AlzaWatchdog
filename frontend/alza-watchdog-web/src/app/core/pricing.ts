@@ -24,13 +24,8 @@ export interface PayablePrice {
 }
 
 /**
- * Whichever of the three prices is lowest — with the members' price considered
- * only for someone who holds the membership, since nobody else can pay it.
- *
- * This is the one place the rule lives. It used to exist twice: the API derived
- * the range and the change from the shelf price alone, while the list sorted by a
- * separate "cheapest" calculation, so a product could sit at the top of a
- * cheapest-first list showing a price change that disagreed with it.
+ * The lowest of the three prices, counting the members' price only for a member.
+ * The one place this rule lives — it used to exist twice, and the two disagreed.
  */
 export function payable(quote: PriceQuote, hasAlzaPlus: boolean): PayablePrice {
   const offers: { label: DiscountLabel; price: number }[] = [];
@@ -69,12 +64,9 @@ export interface PriceStats extends PayablePrice {
 }
 
 /**
- * Everything the card states about a price, all measured on what this person
- * could actually pay.
- *
- * The current price comes from the item rather than the last snapshot: snapshots
- * are only written when something changes, so the item carries the live reading
- * while the history carries the transitions.
+ * Everything the card states about a price, measured on what this person can pay.
+ * "Now" comes from the item, not the last snapshot: snapshots record transitions,
+ * the item carries the live reading.
  */
 export function priceStats(item: TrackedItem, hasAlzaPlus: boolean): PriceStats {
   const now = payable(quoteOf(item), hasAlzaPlus);
