@@ -81,6 +81,10 @@ builder.Services.AddSingleton<ProductImageCache>();
 // ---------------------------------------------------------------------------
 var alzaCookies = new CookieContainer();
 
+// Kept in a variable so the request log can report what the transport adds by
+// itself, rather than a comment claiming it.
+var alzaDecompression = DecompressionMethods.None;
+
 builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
@@ -90,20 +94,27 @@ builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
     // Sec-Fetch-* headers below returns 200 from the same IP seconds later. The
     // fuller Client Hints Cloudflare advertises in Critical-CH (arch, bitness,
     // model, full-version-list) made no difference, so they are not sent.
+    // TryAddWithoutValidation throughout, never Add. Add parses a known header and
+    // re-serialises it from the parsed value, which inserts a space after every
+    // comma and semicolon: "application/xml; q=0.9" where Chrome sends
+    // "application/xml;q=0.9". That leaves us claiming to be Chrome 131 in
+    // sec-ch-ua while formatting our headers in a way Chrome never does, and the
+    // difference is plain in the bytes. This way the strings go out exactly as
+    // written here.
     var headers = client.DefaultRequestHeaders;
-    headers.Add("User-Agent",
+    headers.TryAddWithoutValidation("User-Agent",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
-    headers.Add("Accept",
+    headers.TryAddWithoutValidation("Accept",
         "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
-    headers.Add("Accept-Language", "sk-SK,sk;q=0.9,en;q=0.8");
-    headers.Add("sec-ch-ua", "\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
-    headers.Add("sec-ch-ua-mobile", "?0");
-    headers.Add("sec-ch-ua-platform", "\"Linux\"");
-    headers.Add("Sec-Fetch-Dest", "document");
-    headers.Add("Sec-Fetch-Mode", "navigate");
-    headers.Add("Sec-Fetch-Site", "none");
-    headers.Add("Sec-Fetch-User", "?1");
-    headers.Add("Upgrade-Insecure-Requests", "1");
+    headers.TryAddWithoutValidation("Accept-Language", "sk-SK,sk;q=0.9,en;q=0.8");
+    headers.TryAddWithoutValidation("sec-ch-ua", "\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
+    headers.TryAddWithoutValidation("sec-ch-ua-mobile", "?0");
+    headers.TryAddWithoutValidation("sec-ch-ua-platform", "\"Linux\"");
+    headers.TryAddWithoutValidation("Sec-Fetch-Dest", "document");
+    headers.TryAddWithoutValidation("Sec-Fetch-Mode", "navigate");
+    headers.TryAddWithoutValidation("Sec-Fetch-Site", "none");
+    headers.TryAddWithoutValidation("Sec-Fetch-User", "?1");
+    headers.TryAddWithoutValidation("Upgrade-Insecure-Requests", "1");
 })
 .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
@@ -117,7 +128,7 @@ builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
     // So it is not an identity mismatch to fix by matching Chrome more closely —
     // the header's presence is itself what draws the challenge there. The cost is
     // an uncompressed page, a few hundred kilobytes a handful of times a day.
-    AutomaticDecompression = DecompressionMethods.None,
+    AutomaticDecompression = alzaDecompression,
     CookieContainer = alzaCookies,
     UseCookies = true,
     SslOptions = new SslClientAuthenticationOptions
@@ -142,6 +153,15 @@ builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>(client =>
     o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(70);
     o.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(40);
 });
+
+// Placed after the resilience handler so it logs each attempt separately rather
+// than only the one that finally came back.
+if (builder.Configuration.GetValue($"{WatchdogOptions.SectionName}:LogRequests", false))
+{
+    builder.Services.AddHttpClient<IAlzaScraper, AlzaScraper>()
+        .AddHttpMessageHandler(sp => new HttpTraceHandler(
+            alzaCookies, alzaDecompression, sp.GetRequiredService<ILogger<HttpTraceHandler>>()));
+}
 
 // Product images live on a separate CDN and are only fetched when a list is
 // rendered. A short timeout keeps a slow image from stalling a page of cards.

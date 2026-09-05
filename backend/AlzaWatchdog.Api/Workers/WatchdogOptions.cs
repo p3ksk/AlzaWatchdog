@@ -41,4 +41,12 @@ public class WatchdogOptions
 
     /// <summary>Set false to keep the background sweep from running (useful in tests).</summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Logs every request to alza.sk in full — headers, cookies, and the start of
+    /// the response body. Noisy and prints cookies, so it is off by default; turn
+    /// it on with Watchdog__LogRequests=true when the site is refusing us and the
+    /// ordinary log cannot say why.
+    /// </summary>
+    public bool LogRequests { get; set; }
 }

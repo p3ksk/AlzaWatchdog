@@ -72,20 +72,22 @@ public class LiveScrapeTests
         };
 
         var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+        // TryAddWithoutValidation, as in Program.cs: Add would reformat these and
+        // send different bytes than the app does.
         var headers = client.DefaultRequestHeaders;
-        headers.Add("User-Agent",
+        headers.TryAddWithoutValidation("User-Agent",
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
-        headers.Add("Accept",
+        headers.TryAddWithoutValidation("Accept",
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
-        headers.Add("Accept-Language", "sk-SK,sk;q=0.9,en;q=0.8");
-        headers.Add("sec-ch-ua", "\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
-        headers.Add("sec-ch-ua-mobile", "?0");
-        headers.Add("sec-ch-ua-platform", "\"Linux\"");
-        headers.Add("Sec-Fetch-Dest", "document");
-        headers.Add("Sec-Fetch-Mode", "navigate");
-        headers.Add("Sec-Fetch-Site", "none");
-        headers.Add("Sec-Fetch-User", "?1");
-        headers.Add("Upgrade-Insecure-Requests", "1");
+        headers.TryAddWithoutValidation("Accept-Language", "sk-SK,sk;q=0.9,en;q=0.8");
+        headers.TryAddWithoutValidation("sec-ch-ua", "\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
+        headers.TryAddWithoutValidation("sec-ch-ua-mobile", "?0");
+        headers.TryAddWithoutValidation("sec-ch-ua-platform", "\"Linux\"");
+        headers.TryAddWithoutValidation("Sec-Fetch-Dest", "document");
+        headers.TryAddWithoutValidation("Sec-Fetch-Mode", "navigate");
+        headers.TryAddWithoutValidation("Sec-Fetch-Site", "none");
+        headers.TryAddWithoutValidation("Sec-Fetch-User", "?1");
+        headers.TryAddWithoutValidation("Upgrade-Insecure-Requests", "1");
 
         return client;
     }
