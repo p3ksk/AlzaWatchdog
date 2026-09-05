@@ -49,16 +49,10 @@ public static class ExportEndpoints
                     statusCode: StatusCodes.Status400BadRequest);
             }
 
-            var userId = UserTokenFilter.GetUserId(http);
-            if (bundle.UserId != userId)
-            {
-                return Results.Problem(
-                    title: "Not your bundle",
-                    detail: "This backup belongs to a different account.",
-                    statusCode: StatusCodes.Status403Forbidden);
-            }
-
-            return Results.Ok(await ImportAsync(db, bundle, ct));
+            // Any bundle can go into any account: it describes products, not
+            // ownership, and refusing one because it came from elsewhere only ever
+            // blocked imports that would have worked.
+            return Results.Ok(await ImportAsync(db, UserTokenFilter.GetUserId(http), bundle, ct));
         })
         .WithName("ImportProducts")
         .WithSummary("Restores this account's products from a backup bundle.");
@@ -84,7 +78,7 @@ public static class ExportEndpoints
                     s.Price, s.PlusPrice, s.CouponPrice, s.Availability, s.CapturedAt)).ToList());
     }
 
-    private static async Task<ProductExportBundle> BuildExportAsync(
+    internal static async Task<ProductExportBundle> BuildExportAsync(
         AppDbContext db, Guid userId, CancellationToken ct)
     {
         var items = await db.TrackedItems
@@ -102,9 +96,7 @@ public static class ExportEndpoints
         return new ProductExportBundle(
             ProductExportBundle.CurrentFormat,
             DateTimeOffset.UtcNow,
-            userId,
             items.Select(i => new ExportItem(
-                i.Id,
                 i.WatchList.Name,
                 i.Product.ProductCode,
                 i.Product.CanonicalUrl,
@@ -124,12 +116,12 @@ public static class ExportEndpoints
                 snapshots.GetValueOrDefault(i.ProductId) ?? [])).ToList());
     }
 
-    private static async Task<ImportResultDto> ImportAsync(
-        AppDbContext db, ProductExportBundle bundle, CancellationToken ct)
+    internal static async Task<ImportResultDto> ImportAsync(
+        AppDbContext db, Guid userId, ProductExportBundle bundle, CancellationToken ct)
     {
         var user = await db.Users
             .Include(u => u.Lists)
-            .FirstAsync(u => u.Id == bundle.UserId, ct);
+            .FirstAsync(u => u.Id == userId, ct);
 
         var notes = new List<string>();
         var products = new Dictionary<string, Product>();
@@ -156,7 +148,8 @@ public static class ExportEndpoints
             }
 
             // The same product cannot appear twice on one list, so re-importing
-            // into a live account leaves its existing items untouched.
+            // leaves what is already there untouched. A product already in the
+            // database is reused below rather than duplicated.
             var duplicate = await db.TrackedItems.AnyAsync(
                 i => i.WatchListId == list.Id && i.Product.ProductCode == item.ProductCode, ct);
             if (duplicate)
@@ -174,7 +167,9 @@ public static class ExportEndpoints
 
             db.TrackedItems.Add(new TrackedItem
             {
-                Id = item.Id,
+                // A fresh id, like the snapshots below: the exported one belongs to
+                // a row that may still exist, and reusing it collides on the key.
+                Id = Guid.NewGuid(),
                 WatchListId = list.Id,
                 ProductId = product.Id,
                 SortOrder = item.SortOrder,

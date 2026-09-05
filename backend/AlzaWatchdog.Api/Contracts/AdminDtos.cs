@@ -54,22 +54,27 @@ public record AdminStatsDto(
     int InactiveItems);
 
 // ---------------------------------------------------------------------------
-// Export / import. One user's watched products, flat, with their full snapshot
-// history. Exporting and importing products — not whole accounts — is the only
-// restore operation an admin needs, and it never touches account rows or lists.
+// Export / import. Watched products, flat, with their full snapshot history.
+//
+// Deliberately carries no ids — not the account it came from, and not the tracked
+// item rows. A bundle describes *what* was watched, so it can be imported into any
+// account, including a fresh one on another machine. Carrying the account id only
+// ever refused imports that would have worked, and reusing tracked-item ids made a
+// second import collide on the primary key.
+//
+// Removing those fields keeps the format readable: a bundle written before this
+// change still imports, because the extra properties are simply ignored.
 // ---------------------------------------------------------------------------
 
 public record ProductExportBundle(
     string Format,
     DateTimeOffset ExportedAt,
-    Guid UserId,
     IReadOnlyList<ExportItem> Items)
 {
     public const string CurrentFormat = "alza-watchdog/products/v1";
 }
 
 public record ExportItem(
-    Guid Id,
     string ListName,
     string ProductCode,
     string CanonicalUrl,
