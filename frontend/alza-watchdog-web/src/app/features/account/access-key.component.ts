@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AccountService } from '../../core/account.service';
 import { compactGuid, keyFromInput } from '../../core/guid';
+import { QrCodeComponent } from '../../shared/qr-code.component';
 
 /**
  * The account key lives in the address bar and nowhere else — nothing is stored
@@ -13,7 +14,7 @@ import { compactGuid, keyFromInput } from '../../core/guid';
 @Component({
   selector: 'app-access-key',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, QrCodeComponent],
   templateUrl: './access-key.component.html',
   styleUrl: './access-key.component.scss',
 })
@@ -24,6 +25,7 @@ export class AccessKeyComponent {
 
   protected readonly key = this.account.key;
   protected readonly copied = signal(false);
+  protected readonly showQr = signal(false);
   protected readonly candidate = signal('');
   protected readonly error = signal<string | null>(null);
 
@@ -50,8 +52,13 @@ export class AccessKeyComponent {
 
   protected reset(): void {
     this.copied.set(false);
+    this.showQr.set(false);
     this.candidate.set('');
     this.error.set(null);
+  }
+
+  protected toggleQr(): void {
+    this.showQr.update((shown) => !shown);
   }
 
   protected async copy(): Promise<void> {

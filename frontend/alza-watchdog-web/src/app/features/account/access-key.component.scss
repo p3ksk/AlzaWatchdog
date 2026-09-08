@@ -72,6 +72,23 @@ h3 {
   }
 }
 
+.qr {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+
+  app-qr-code {
+    width: min(15rem, 60vw);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.74rem;
+    color: var(--ink-dim);
+    text-align: center;
+  }
+}
+
 .adopt label {
   display: block;
   font-size: 0.72rem;

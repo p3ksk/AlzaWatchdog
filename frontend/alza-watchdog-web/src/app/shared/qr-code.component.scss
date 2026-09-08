@@ -1,0 +1,11 @@
+:host {
+  display: block;
+}
+
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 2px solid var(--rule);
+  background: #f4ecd8;
+}

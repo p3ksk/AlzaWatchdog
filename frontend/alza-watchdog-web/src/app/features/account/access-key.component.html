@@ -12,7 +12,22 @@
       <button type="button" (click)="copy()" [disabled]="!accountUrl()">
         {{ copied() ? 'Copied' : 'Copy' }}
       </button>
+      <button
+        type="button"
+        (click)="toggleQr()"
+        [disabled]="!accountUrl()"
+        [attr.aria-expanded]="showQr()"
+      >
+        {{ showQr() ? 'Hide QR' : 'QR' }}
+      </button>
     </div>
+
+    @if (showQr() && accountUrl(); as url) {
+      <div class="qr">
+        <app-qr-code [value]="url" ecc="M" label="Link to your lists" />
+        <p>Scan with another device to open your lists there.</p>
+      </div>
+    }
 
     <p class="explain">
       Anyone with this link can see and edit every list on it, so share it only
