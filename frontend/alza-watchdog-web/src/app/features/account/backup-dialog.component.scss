@@ -1,14 +1,13 @@
 dialog {
-  border: 2px solid var(--amber);
-  border-radius: 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
   background: var(--panel);
   color: var(--ink);
   padding: 0;
   width: min(38rem, calc(100vw - 2rem));
-  box-shadow: 6px 6px 0 var(--rule);
 
   &::backdrop {
-    background: rgb(0 0 0 / 0.6);
+    background: rgb(0 0 0 / 0.5);
   }
 }
 
@@ -20,22 +19,21 @@ dialog {
 
 h2 {
   margin: 0;
-  font-size: 1rem;
-  color: var(--amber);
+  font-size: 16px;
+  color: var(--ink);
 }
 
 h3 {
   margin: 0 0 -0.4rem;
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--ink);
 }
 
 .explain {
   margin: 0;
   color: var(--ink-dim);
-  font-size: 0.78rem;
+  font-size: 12px;
 }
 
 .row {
@@ -45,34 +43,33 @@ h3 {
 
 hr {
   border: 0;
-  border-top: 2px solid var(--rule);
+  border-top: 1px solid var(--rule);
 }
 
 input[type='file'] {
-  font-size: 0.78rem;
+  font-size: 12px;
 }
 
 textarea {
   width: 100%;
   resize: vertical;
   padding: 0.6rem 0.7rem;
-  border: 2px solid var(--rule-strong);
-  border-radius: 0;
-  background: var(--panel-sunken);
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  background: var(--panel);
   color: var(--ink);
-  font: inherit;
-  font-size: 0.76rem;
+  font-family: var(--font-mono);
+  font-size: 12px;
 
   &:focus {
     outline: none;
-    border-color: var(--amber);
-    box-shadow: 0 0 0 2px var(--glow);
+    border-color: var(--accent);
   }
 }
 
 .status {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 12px;
   min-height: 1.2em;
 
   .error {
@@ -80,7 +77,7 @@ textarea {
   }
 
   .ok {
-    color: var(--green);
+    color: var(--accent);
   }
 }
 

@@ -1,4 +1,6 @@
-<h1 class="title">▌ Admin</h1>
+<div class="admin-head">
+  <h1 class="title"><span class="glyph">▌</span> Admin</h1>
+</div>
 
 @if (loading()) {
   <p class="muted">Loading…</p>
@@ -22,10 +24,9 @@
       <div><dt>Tracked</dt><dd>{{ s.items }}</dd></div>
       <div><dt>Products</dt><dd>{{ s.distinctProducts }}</dd></div>
       <div><dt>Snapshots</dt><dd>{{ s.snapshots }}</dd></div>
-      <div><dt>Paused</dt><dd [class.bad]="s.inactiveItems > 0">{{ s.inactiveItems }}</dd></div>
+      <div><dt>Paused</dt><dd>{{ s.inactiveItems }}</dd></div>
     </dl>
   }
-
 
   <div class="tabs" role="tablist" aria-label="Admin sections">
     @for (t of tabs; track t.key) {
@@ -49,18 +50,16 @@
     @switch (tab()) {
       @case ('products') {
         <section>
-          <h2>
-            Products ({{ visibleProducts().length }})
-          </h2>
+          <h2>Products ({{ visibleProducts().length }})</h2>
 
           @if (userFilter(); as owner) {
             <p class="filter-bar">
               Showing only <code>{{ shortId(owner) }}…</code>
-              <button type="button" (click)="clearFilter()">Show all products</button>
+              <button type="button" class="bare" (click)="clearFilter()">Show all products</button>
             </p>
           }
 
-          <div class="search">
+          <div class="find">
             <label for="product-search">Find</label>
             <input
               id="product-search"
@@ -71,25 +70,30 @@
               [value]="productQuery()"
               (input)="searchProducts($any($event.target).value)"
             />
-            @if (productQuery()) {
-              <span class="matches">
-                {{ matchingProducts().length }} of {{ visibleProducts().length }}
-              </span>
-              <button type="button" class="bare" (click)="searchProducts('')">Clear</button>
-            }
+            <span class="matches">
+              {{ matchingProducts().length }} of {{ visibleProducts().length }}
+            </span>
           </div>
 
-          <ul class="items">
+          <div class="col-head" aria-hidden="true">
+            <span>Product</span>
+            <span class="r">Price</span>
+            <span class="r">Best</span>
+            <span class="r">Snaps</span>
+          </div>
+
+          <ul class="rows">
             @for (group of pagedProducts(); track group.item.productCode) {
               @let item = group.item;
-              <li class="item" [class.inactive]="!item.isActive">
-                <div class="head">
+              @let b = best(item);
+              <li class="row-wrap" [class.expanded]="expandedItem() === item.id" [class.inactive]="!item.isActive">
+                <div class="row">
                   <div class="ident">
-                    <a [href]="item.url" target="_blank" rel="noopener noreferrer">
+                    <a [href]="item.url" target="_blank" rel="noopener noreferrer" class="name">
                       {{ item.name ?? item.url }}
                     </a>
                     <p class="meta">
-                      <code>d{{ item.productCode }}</code>
+                      <span class="code">d{{ item.productCode }}</span>
                       · watched by {{ group.trackedBy.length }}
                         {{ group.trackedBy.length === 1 ? 'list' : 'lists' }}
                       · checked {{ ago(item.lastCheckedAt) }}
@@ -102,47 +106,74 @@
                     }
                   </div>
 
-                  <div class="prices">
-                    <span class="p">{{ price(item.lastPrice, item.currency) }}</span>
-                    @if (item.lastPlusPrice !== null) {
-                      <span class="alt">plus {{ price(item.lastPlusPrice, item.currency) }}</span>
-                    }
-                    @if (item.lastCouponPrice !== null) {
-                      <span class="alt">code {{ price(item.lastCouponPrice, item.currency) }}</span>
+                  <div class="cell-price">{{ price(item.lastPrice, item.currency) }}</div>
+
+                  <div class="cell-best">
+                    @if (b.label) {
+                      <span class="best-price">{{ price(b.value, item.currency) }}</span>
+                      <span class="best-label">{{ b.label }}</span>
+                    } @else {
+                      <span class="dash">—</span>
                     }
                   </div>
 
-                  <button type="button" (click)="toggleItem(item.id)" [attr.aria-expanded]="expandedItem() === item.id">
-                    {{ expandedItem() === item.id ? 'Hide' : item.snapshots.length + ' snaps' }}
+                  <button
+                    type="button"
+                    class="snaps"
+                    (click)="toggleItem(item.id)"
+                    [attr.aria-expanded]="expandedItem() === item.id"
+                  >
+                    @if (expandedItem() === item.id) {
+                      Hide
+                    } @else {
+                      {{ item.snapshots.length }} {{ item.snapshots.length === 1 ? 'snap' : 'snaps' }}
+                    }
                   </button>
                 </div>
 
                 @if (expandedItem() === item.id) {
-                  <div class="snapshots">
-                    @if (item.snapshots.length > 1) {
+                  <div class="expansion">
+                    @if (item.snapshots.length >= 1) {
                       <app-price-chart
                         [history]="item.snapshots"
                         [currency]="item.currency"
-                        [detailed]="true"
+                        [plusPrice]="item.lastPlusPrice"
+                        [srTable]="false"
+                        variant="admin"
                       />
                     }
-                    <div class="scroll">
-                      <table>
-                        <thead>
-                          <tr><th>Captured</th><th>Price</th><th>AlzaPlus+</th><th>With code</th><th>Availability</th></tr>
-                        </thead>
-                        <tbody>
-                          @for (s of item.snapshots; track s.capturedAt) {
-                            <tr>
-                              <td>{{ s.capturedAt | date: 'd MMM y, HH:mm' }}</td>
-                              <td class="num">{{ price(s.price, item.currency) }}</td>
-                              <td class="num">{{ s.plusPrice === null ? '—' : price(s.plusPrice, item.currency) }}</td>
-                              <td class="num">{{ s.couponPrice === null ? '—' : price(s.couponPrice, item.currency) }}</td>
-                              <td>{{ s.availability ?? '—' }}</td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
+
+                    <div class="snap-table">
+                      <div class="snap-head">
+                        <span>Seen</span>
+                        <span>Price</span>
+                        <span>AlzaPlus+</span>
+                        <span>With code</span>
+                        <span>Availability</span>
+                        <span class="r">Change</span>
+                      </div>
+                      @for (r of snapshotRows(item.snapshots); track r.snap.capturedAt) {
+                        <div class="snap-row">
+                          <span>{{ r.snap.capturedAt | date: 'y-MM-dd HH:mm' }}</span>
+                          <span class="v">{{ price(r.snap.price, item.currency) }}</span>
+                          <span>{{ r.snap.plusPrice === null ? '—' : price(r.snap.plusPrice, item.currency) }}</span>
+                          <span>{{ r.snap.couponPrice === null ? '—' : price(r.snap.couponPrice, item.currency) }}</span>
+                          <span>{{ r.snap.availability ?? '—' }}</span>
+                          <span
+                            class="r change"
+                            [class.drop]="r.changePct !== null && r.changePct < 0"
+                            [class.rise]="r.changePct !== null && r.changePct > 0"
+                          >
+                            @if (r.first) {
+                              first seen
+                            } @else if (r.changePct !== null) {
+                              {{ r.changePct > 0 ? '+' : '−' }}{{ abs(r.changePct) }}%
+                            } @else {
+                              —
+                            }
+                          </span>
+                        </div>
+                      }
                     </div>
                   </div>
                 }
@@ -151,7 +182,7 @@
           </ul>
 
           @if (matchingProducts().length === 0) {
-            <p class="muted">No product matches that.</p>
+            <p class="muted pad">No product matches that.</p>
           }
 
           <app-paginator
@@ -315,5 +346,4 @@
       }
     }
   </div>
-
 }

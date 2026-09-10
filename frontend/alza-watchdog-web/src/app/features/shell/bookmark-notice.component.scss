@@ -4,20 +4,19 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1rem;
-  margin-bottom: 1.25rem;
-  padding: 0.7rem 0.85rem;
-  border: 2px solid var(--amber);
+  margin: 0;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--rule);
   background: var(--panel);
-  box-shadow: 4px 4px 0 var(--rule);
 }
 
 .text {
   flex: 1 1 24rem;
-  font-size: 0.78rem;
+  font-size: 12px;
   color: var(--ink-dim);
 
   strong {
-    color: var(--amber);
-    letter-spacing: 0.04em;
+    color: var(--accent);
+    font-weight: 600;
   }
 }

@@ -2,14 +2,21 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output, si
 import { AccountService } from '../../core/account.service';
 import { ClockService } from '../../core/clock.service';
 import { TrackedItem } from '../../core/models';
-import { formatAvailability, formatExact, formatPrice, formatRelative } from '../../core/format';
+import { formatExact, formatPrice, formatRelative } from '../../core/format';
 import { priceStats } from '../../core/pricing';
 import { PriceChartComponent } from './price-chart.component';
+import { SparklineComponent } from './sparkline.component';
 
+/**
+ * One product as a ledger row: name and badges, the change since the last
+ * reading, the price, and a sparkline. Selecting the row opens a detail panel
+ * with the full chart. The row is the disclosure control — it has no nested
+ * links, so the whole thing is one button.
+ */
 @Component({
   selector: 'app-item-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PriceChartComponent],
+  imports: [PriceChartComponent, SparklineComponent],
   templateUrl: './item-card.component.html',
   styleUrl: './item-card.component.scss',
 })
@@ -19,26 +26,21 @@ export class ItemCardComponent {
 
   readonly item = input.required<TrackedItem>();
   readonly busy = input(false);
-  /** Message from the last failed action on this card, e.g. the refresh cooldown. */
+  readonly expanded = input(false);
+  /** Message from the last failed action on this row, e.g. the refresh cooldown. */
   readonly note = input<string | null>(null);
 
+  readonly toggleRequested = output<void>();
   readonly resumeRequested = output<void>();
   readonly removeRequested = output<void>();
 
-  protected readonly expanded = signal(false);
   protected readonly confirmingRemove = signal(false);
+
+  protected readonly hasAlzaPlus = this.account.hasAlzaPlus;
 
   protected readonly checkedLabel = computed(() =>
     formatRelative(this.item().lastCheckedAt, this.clock.now()),
   );
-
-  /**
-   * Every price on this card, measured on what this person could actually pay —
-   * the members' price only counts for a member. Recomputed when the AlzaPlus+
-   * switch moves, so the card answers the new question immediately rather than
-   * waiting for the next load.
-   */
-  protected readonly hasAlzaPlus = this.account.hasAlzaPlus;
 
   protected readonly stats = computed(() => priceStats(this.item(), this.hasAlzaPlus()));
 
@@ -46,7 +48,7 @@ export class ItemCardComponent {
     formatPrice(this.stats().value, this.item().currency),
   );
 
-  /** The price the discount is measured against, shown struck through beside it. */
+  /** The shelf price the discount is measured against, struck through beside it. */
   protected readonly shelfLabel = computed(() => {
     const { value, shelf } = this.stats();
     return shelf !== null && value !== null && value < shelf
@@ -54,53 +56,47 @@ export class ItemCardComponent {
       : null;
   });
 
-  /** Signed change against the previous reading, e.g. "−2,40 €". */
+  /** Shown under the price when there is no discount to strike through. */
+  protected readonly lowLabel = computed(() => {
+    const { lowest } = this.stats();
+    return this.shelfLabel() === null && lowest !== null
+      ? `low ${formatPrice(lowest, this.item().currency)}`
+      : null;
+  });
+
+  /** Signed percentage against the previous reading, e.g. "−18%" / "+11%". */
   protected readonly changeLabel = computed(() => {
-    const { change } = this.stats();
-    if (change === null || change === 0) {
+    const { change, previous } = this.stats();
+    if (change === null || previous === null || previous === 0) {
       return null;
     }
 
-    return (change > 0 ? '+' : '−') + formatPrice(Math.abs(change), this.item().currency);
-  });
-
-  /**
-   * The discount that is not already leading the card. Showing the winner again
-   * underneath would just repeat the headline; showing the loser tells you what
-   * else this product offers.
-   */
-  protected readonly offers = computed(() => {
-    const { currency, currentPrice, plusPrice, couponPrice } = this.item();
-    const winner = this.stats().via;
-
-    const beatsShelfPrice = (value: number | null): value is number =>
-      value !== null && (currentPrice === null || value < currentPrice);
-
-    return [
-      // The members' price is always stored; it is only shown to someone who
-      // actually holds the membership, since nobody else can pay it.
-      { label: 'AlzaPlus+', price: this.account.hasAlzaPlus() ? plusPrice : null },
-      { label: 'With code', price: couponPrice },
-    ]
-      .filter((offer) => offer.label !== winner && beatsShelfPrice(offer.price))
-      .map((offer) => ({ label: offer.label, value: formatPrice(offer.price, currency) }));
-  });
-
-  protected readonly rangeLabel = computed(() => {
-    const { lowest, highest } = this.stats();
-
-    // A single reading makes a range meaningless — there is nothing to compare to.
-    if (this.item().history.length < 2 || lowest === null || highest === null) {
+    const pct = Math.round((change / previous) * 100);
+    if (pct === 0) {
       return null;
     }
 
-    return `${formatPrice(lowest, this.item().currency)} – ${formatPrice(highest, this.item().currency)}`;
+    return `${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`;
   });
 
-  protected readonly availabilityLabel = computed(() => formatAvailability(this.item().availability));
+  protected readonly isDrop = computed(() => (this.stats().change ?? 0) < 0);
+
+  /** The AlzaPlus+ price is what this member would actually pay, and it beats the shelf price. */
+  protected readonly showPlusBadge = computed(() => this.stats().via === 'AlzaPlus+');
 
   protected readonly isOutOfStock = computed(() =>
     ['OutOfStock', 'SoldOut', 'Discontinued'].includes(this.item().availability ?? ''),
+  );
+
+  /** The row opens a chart only once there is a history to draw. */
+  protected readonly canExpand = computed(() => this.item().history.length >= 1);
+
+  /**
+   * The dashed AlzaPlus+ reference line is only worth drawing for a non-member:
+   * once the switch is on, the price line already *is* the members' price.
+   */
+  protected readonly plusForChart = computed(() =>
+    !this.hasAlzaPlus() ? this.item().plusPrice : null,
   );
 
   protected exact(iso: string | null): string {
@@ -108,7 +104,16 @@ export class ItemCardComponent {
   }
 
   protected toggle(): void {
-    this.expanded.update((open) => !open);
+    if (this.canExpand()) {
+      this.toggleRequested.emit();
+    }
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.toggle();
+    }
   }
 
   protected askRemove(): void {

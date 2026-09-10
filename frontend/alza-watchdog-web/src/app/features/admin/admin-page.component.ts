@@ -2,10 +2,18 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { DatePipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { AccountService } from '../../core/account.service';
-import { AccountImportResult, AdminItem, AdminStats, AdminUser, AdminWorker } from '../../core/models';
+import {
+  AccountImportResult,
+  AdminItem,
+  AdminStats,
+  AdminUser,
+  AdminWorker,
+  PriceSnapshot,
+} from '../../core/models';
 import { WatchdogApi, describeError } from '../../core/watchdog-api.service';
 import { compactGuid } from '../../core/guid';
 import { formatPrice, formatRelative } from '../../core/format';
+import { payable } from '../../core/pricing';
 import { PriceChartComponent } from '../items/price-chart.component';
 import { TipComponent } from '../../shared/tip.component';
 import { PaginatorComponent } from '../../shared/paginator.component';
@@ -188,6 +196,41 @@ export class AdminPageComponent {
     return formatPrice(value, currency);
   }
 
+  /** The best discounted price on a product, and whether the code or Plus wins. */
+  protected best(item: AdminItem): { value: number | null; label: 'PLUS' | 'CODE' | null } {
+    const { value, via } = payable(
+      { price: item.lastPrice, plusPrice: item.lastPlusPrice, couponPrice: item.lastCouponPrice },
+      true,
+    );
+    return {
+      value: via === null ? null : value,
+      label: via === 'AlzaPlus+' ? 'PLUS' : via === 'With code' ? 'CODE' : null,
+    };
+  }
+
+  /** Snapshots newest first, each with a % change against the previous payable price. */
+  protected snapshotRows(
+    snapshots: PriceSnapshot[],
+  ): { snap: PriceSnapshot; changePct: number | null; first: boolean }[] {
+    const oldestFirst = [...snapshots].sort(
+      (a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime(),
+    );
+
+    let previous: number | null = null;
+    const rows = oldestFirst.map((snap) => {
+      const value = payable(snap, true).value;
+      const changePct =
+        previous !== null && previous !== 0 && value !== null
+          ? Math.round(((value - previous) / previous) * 100)
+          : null;
+      const row = { snap, changePct, first: previous === null };
+      previous = value ?? previous;
+      return row;
+    });
+
+    return rows.reverse();
+  }
+
   /** Explanations the frontend owns; per-setting hints come from the workers. */
   protected readonly tips = {
     running: 'The worker is scheduled and will act at the time shown. Turn it off in configuration, not here.',
@@ -203,6 +246,10 @@ export class AdminPageComponent {
 
   protected ago(iso: string | null): string {
     return formatRelative(iso);
+  }
+
+  protected abs(value: number): number {
+    return Math.abs(value);
   }
 
   /** Absolute timestamp for a tooltip, since "in 4 hours" alone is hard to plan around. */

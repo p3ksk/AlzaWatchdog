@@ -2,26 +2,39 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem 0.7rem;
-  margin-top: 0.7rem;
-  padding-top: 0.6rem;
-  border-top: 2px solid var(--rule);
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 24px;
+  padding: 14px 0;
+  border-top: 1px solid var(--rule);
 }
 
 .range {
-  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-dim);
 }
 
-.sep {
-  opacity: 0.5;
-  margin: 0 0.15rem;
+.controls {
+  display: flex;
+  gap: 8px;
 }
 
 button {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.72rem;
+  padding: 7px 11px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+
+  &:disabled {
+    border-color: var(--rule);
+    color: var(--ink-faint);
+  }
+
+  &.next:not(:disabled) {
+    border-color: var(--accent-line);
+    background: var(--accent-wash);
+    color: var(--accent);
+  }
 }

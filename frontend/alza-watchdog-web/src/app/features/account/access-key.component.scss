@@ -1,14 +1,13 @@
 dialog {
-  border: 2px solid var(--amber);
-  border-radius: 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
   background: var(--panel);
   color: var(--ink);
   padding: 0;
   width: min(38rem, calc(100vw - 2rem));
-  box-shadow: 6px 6px 0 var(--rule);
 
   &::backdrop {
-    background: rgb(0 0 0 / 0.6);
+    background: rgb(0 0 0 / 0.5);
   }
 }
 
@@ -20,29 +19,29 @@ dialog {
 
 h2 {
   margin: 0;
-  font-size: 1rem;
-  color: var(--amber);
+  font-size: 16px;
+  color: var(--ink);
 }
 
 h3 {
   margin: 0 0 0.3rem;
-  font-size: 0.75rem;
+  font-size: 12px;
   color: var(--ink);
 }
 
+/* A real failure state — keeps the alert colour. */
 .warn {
   margin: 0;
   padding: 0.6rem 0.75rem;
-  border: 2px solid var(--amber);
-  background: var(--panel-sunken);
-  color: var(--ink);
-  font-size: 0.8rem;
+  border: 1px solid var(--red);
+  color: var(--red);
+  font-size: 12px;
 }
 
 .explain {
   margin: 0 0 0.5rem;
   color: var(--ink-dim);
-  font-size: 0.76rem;
+  font-size: 12px;
 
   strong {
     color: var(--ink);
@@ -58,17 +57,18 @@ h3 {
     flex: 1 1 auto;
     display: flex;
     align-items: center;
-    padding: 0.4rem 0.6rem;
-    border: 2px solid var(--rule);
+    padding: 9px 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
     background: var(--panel-sunken);
-    font-size: 0.78rem;
+    font-size: 12px;
     overflow-wrap: anywhere;
     user-select: all;
   }
 
   input {
     flex: 1 1 auto;
-    font-size: 0.8rem;
+    font-size: 13px;
   }
 }
 
@@ -83,29 +83,30 @@ h3 {
 
   p {
     margin: 0;
-    font-size: 0.74rem;
+    font-size: 12px;
     color: var(--ink-dim);
     text-align: center;
   }
 }
 
+.adopt {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+}
+
 .adopt label {
   display: block;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--ink-dim);
   margin-bottom: 0.35rem;
 }
 
-.adopt {
-  padding-top: 0.9rem;
-  border-top: 2px solid var(--rule);
-}
-
 .status {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 12px;
   min-height: 1.2em;
 
   .error {
@@ -113,7 +114,7 @@ h3 {
   }
 
   .ok {
-    color: var(--green);
+    color: var(--accent);
   }
 }
 

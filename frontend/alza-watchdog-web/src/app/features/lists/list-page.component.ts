@@ -43,6 +43,7 @@ export class ListPageComponent {
   protected readonly accountFailed = this.account.loadFailed;
 
   protected readonly sort = signal<SortKey>('recent');
+  protected readonly expandedItemId = signal<string | null>(null);
   protected readonly notes = signal<Readonly<Record<string, string>>>({});
   protected readonly starting = signal(false);
   protected readonly draggingId = signal<string | null>(null);
@@ -110,6 +111,7 @@ export class ListPageComponent {
       }
 
       this.listError.set(null);
+      this.expandedItemId.set(null);
       void this.store.open(id);
       void this.account.loadLists();
     });
@@ -117,6 +119,10 @@ export class ListPageComponent {
 
   protected isBusy(id: string): boolean {
     return this.store.isBusy(id);
+  }
+
+  protected toggleExpand(id: string): void {
+    this.expandedItemId.update((current) => (current === id ? null : id));
   }
 
   protected noteFor(id: string): string | null {

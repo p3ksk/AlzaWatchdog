@@ -1,0 +1,153 @@
+@let m = model();
+
+<div class="chart" [class.admin]="variant() === 'admin'">
+  <div class="head">
+    <div class="stats">
+      <div class="stat">
+        <span class="k">NOW</span>
+        <span class="v">{{ m ? price(m.now) : '—' }}</span>
+      </div>
+      <div class="stat">
+        <span class="k">ALL-TIME LOW</span>
+        <span class="v low">{{ m ? price(m.low) : '—' }}</span>
+      </div>
+      <div class="stat">
+        <span class="k">HIGH</span>
+        <span class="v">{{ m ? price(m.high) : '—' }}</span>
+      </div>
+      <div class="stat">
+        @if (variant() === 'admin') {
+          <span class="k">SNAPSHOTS</span>
+          <span class="v">{{ m?.count ?? 0 }}</span>
+        } @else {
+          <span class="k">MEDIAN</span>
+          <span class="v">{{ m ? price(m.median) : '—' }}</span>
+        }
+      </div>
+    </div>
+
+    <div class="ranges">
+      @for (r of ranges(); track r.key) {
+        <button
+          type="button"
+          class="range"
+          [class.on]="activeRange() === r.key"
+          [disabled]="!r.enabled"
+          (click)="setRange(r.key)"
+        >
+          {{ r.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (m) {
+    <div class="plot">
+      <svg
+        [attr.viewBox]="viewBox()"
+        [attr.width]="920"
+        [attr.height]="geo().height"
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        tabindex="0"
+        [attr.aria-label]="summary()"
+        (pointermove)="track($event)"
+        (pointerleave)="hoveredIndex.set(null)"
+        (keydown)="step($event)"
+      >
+        <g class="grid">
+          @for (line of m.gridlines; track line.y) {
+            <line [attr.x1]="56" [attr.x2]="900" [attr.y1]="line.y" [attr.y2]="line.y" />
+          }
+        </g>
+        <g class="y-label">
+          @for (line of m.gridlines; track line.y) {
+            <text [attr.x]="46" [attr.y]="line.y + 4" text-anchor="end">{{ line.label }}</text>
+          }
+        </g>
+
+        <path class="area" [attr.d]="m.areaPath" />
+        <path class="line" [attr.d]="m.linePath" />
+
+        @if (m.plusLine; as plus) {
+          <line
+            class="plus-line"
+            [attr.x1]="56"
+            [attr.x2]="900"
+            [attr.y1]="plus.y"
+            [attr.y2]="plus.y"
+          />
+          <text class="plus-label" [attr.x]="64" [attr.y]="plus.y + 14">{{ plus.label }}</text>
+        }
+
+        @if (m.lowPoint; as lp) {
+          <circle class="marker" [attr.cx]="lp.x" [attr.cy]="lp.y" r="4" />
+          <text
+            class="marker-label"
+            [attr.x]="m.lowAnchor === 'end' ? lp.x - 6 : m.lowAnchor === 'start' ? lp.x + 6 : lp.x"
+            [attr.y]="lp.y - 14"
+            [attr.text-anchor]="m.lowAnchor"
+          >
+            low {{ price(m.low) }}
+          </text>
+        }
+        @if (m.latest; as last) {
+          <circle class="marker" [attr.cx]="last.x" [attr.cy]="last.y" r="4" />
+        }
+
+        <g class="ticks">
+          @for (p of m.snapshotPoints; track p.t) {
+            <line [attr.x1]="p.x" [attr.x2]="p.x" [attr.y1]="geo().tickTop" [attr.y2]="geo().tickTop + 6" />
+          }
+        </g>
+        <g class="x-label">
+          @if (m.gapLabel) {
+            <text [attr.x]="56" [attr.y]="geo().xLabelY" text-anchor="start">{{ m.gapLabel }}</text>
+          }
+          @for (tick of m.xTicks; track $index) {
+            <text [attr.x]="tick.x" [attr.y]="geo().xLabelY" [attr.text-anchor]="tick.anchor">
+              {{ tick.label }}
+            </text>
+          }
+        </g>
+
+        @if (readout(); as r) {
+          <line class="guide" [attr.x1]="r.x" [attr.x2]="r.x" [attr.y1]="20" [attr.y2]="geo().plotBottom" />
+          <circle class="hover-dot" [attr.cx]="r.x" [attr.cy]="r.y" r="5" />
+        }
+      </svg>
+
+      @if (readout(); as r) {
+        <div
+          class="readout"
+          [class.flip]="r.flip"
+          [class.below]="r.below"
+          [style.left.%]="r.leftPct"
+          [style.top.%]="r.topPct"
+        >
+          <strong>{{ r.price }}</strong>
+          <span>{{ r.when }}</span>
+        </div>
+      }
+    </div>
+
+    @if (srTable()) {
+      <table class="sr-only">
+        <caption>Price history</caption>
+        <thead>
+          <tr><th>Date</th><th>Price</th></tr>
+        </thead>
+        <tbody>
+          @for (p of m.snapshotPoints; track p.t) {
+            <tr>
+              <td>{{ shortDate(p.t) }}</td>
+              <td>{{ price(p.price) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  } @else {
+    <p class="no-data">No price history yet.</p>
+  }
+</div>

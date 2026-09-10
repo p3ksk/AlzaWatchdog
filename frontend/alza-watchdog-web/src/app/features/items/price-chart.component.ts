@@ -1,285 +1,327 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  ElementRef,
-  computed,
-  inject,
-  input,
-  signal,
-  viewChild,
-  afterNextRender,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { PriceSnapshot } from '../../core/models';
-import { formatExact, formatPrice, formatRelative } from '../../core/format';
-import { monotoneCubicPath } from './smooth-path';
-import { payableAt } from '../../core/pricing';
+import { formatExact, formatPrice } from '../../core/format';
+import { median, payableAt } from '../../core/pricing';
+import { steppedAreaPath, steppedPath } from './stepped-path';
 
-interface Plotted {
-  x: number;
-  y: number;
+type Range = '30d' | '90d' | '1y' | 'all';
+type Variant = 'watchlist' | 'admin';
+
+interface DataPoint {
+  t: number;
   price: number;
-  snapshot: PriceSnapshot;
 }
 
+interface PlacedPoint extends DataPoint {
+  x: number;
+  y: number;
+}
+
+const RANGE_MS: Record<Exclude<Range, 'all'>, number> = {
+  '30d': 30 * 864e5,
+  '90d': 90 * 864e5,
+  '1y': 365 * 864e5,
+};
+
+const GEO: Record<Variant, { height: number; plotBottom: number; tickTop: number; xLabelY: number }> = {
+  watchlist: { height: 238, plotBottom: 190, tickTop: 198, xLabelY: 224 },
+  admin: { height: 212, plotBottom: 146, tickTop: 172, xLabelY: 198 },
+};
+
+const PLOT_LEFT = 56;
+const PLOT_RIGHT = 900;
+const PLOT_TOP = 20;
+const Y_LABEL_X = 46;
+const VIEW_W = 920;
+
+/**
+ * The full price history of one product. Built once, mounted in two places: a
+ * detail panel under a selected watchlist row, and inside an expanded admin row
+ * above the snapshot table.
+ *
+ * A price is a step function, so the line is stepped (`H`/`V` only): every
+ * vertical is a price change, every horizontal is how long that price held.
+ * Every snapshot is a tick on the axis, so sparse coverage stays visible instead
+ * of looking like a smooth trend.
+ */
 @Component({
   selector: 'app-price-chart',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @let points = plotted();
-
-    <div class="frame" #frame [class.detailed]="detailed()">
-      @if (points.length < 2) {
-        <p class="single">Awaiting a second reading&hellip;</p>
-      } @else {
-        <!--
-          Rendered in real pixel coordinates rather than a stretched 0–100 viewBox.
-          Uniform scaling is what keeps the curve, the glow and the dots smooth and
-          round instead of squashed, which is the whole point of measuring first.
-        -->
-        <svg
-          [attr.width]="size().width"
-          [attr.height]="size().height"
-          [attr.viewBox]="'0 0 ' + size().width + ' ' + size().height"
-          (pointermove)="detailed() && track($event)"
-          (pointerleave)="hovered.set(null)"
-          role="img"
-          [attr.aria-label]="summary()"
-        >
-          <defs>
-            <linearGradient [attr.id]="gradientId" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" [attr.stop-color]="'currentColor'" stop-opacity="0.28" />
-              <stop offset="100%" [attr.stop-color]="'currentColor'" stop-opacity="0" />
-            </linearGradient>
-            <filter [attr.id]="glowId" x="-20%" y="-40%" width="140%" height="180%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          <path class="area" [attr.d]="areaPath()" [attr.fill]="'url(#' + gradientId + ')'" />
-          <path class="line" [attr.d]="linePath()" [attr.filter]="'url(#' + glowId + ')'" />
-
-          @if (detailed()) {
-            @for (point of points; track point.snapshot.capturedAt) {
-              <circle class="dot" [attr.cx]="point.x" [attr.cy]="point.y" r="3" />
-            }
-          }
-
-          @let last = points[points.length - 1];
-          <circle class="dot current" [attr.cx]="last.x" [attr.cy]="last.y" r="4.5" />
-
-          @let active = hoveredPoint();
-          @if (active) {
-            <line
-              class="guide"
-              [attr.x1]="active.x"
-              [attr.x2]="active.x"
-              y1="0"
-              [attr.y2]="size().height"
-            />
-            <circle class="dot active" [attr.cx]="active.x" [attr.cy]="active.y" r="5.5" />
-          }
-        </svg>
-
-        @if (active; as point) {
-          <div
-            class="tip"
-            [style.left.px]="point.x"
-            [style.top.px]="point.y"
-            [class.flip]="point.x > size().width * 0.65"
-            [class.below]="point.y < size().height * 0.45"
-          >
-            <strong>{{ price(point.price) }}</strong>
-            <span [title]="exact(point.snapshot.capturedAt)">
-              {{ relative(point.snapshot.capturedAt) }}
-            </span>
-          </div>
-        }
-      }
-    </div>
-
-    @if (detailed() && points.length > 1) {
-      <div class="bounds">
-        <span>LO {{ price(low()) }}</span>
-        <span>{{ points.length }} readings</span>
-        <span>HI {{ price(high()) }}</span>
-      </div>
-    }
-  `,
+  templateUrl: './price-chart.component.html',
   styleUrl: './price-chart.component.scss',
 })
 export class PriceChartComponent {
-  private static nextId = 0;
-
   readonly history = input.required<PriceSnapshot[]>();
   readonly currency = input<string | null>(null);
-  /** Adds every data point, hover readout, the low/high footer and a taller plot. */
-  readonly detailed = input(false);
-  /**
-   * Whether the AlzaPlus+ price counts as payable. Passed in rather than read
-   * from the account, because the admin section draws the same chart for products
-   * belonging to other people, where no single membership applies.
-   */
   readonly hasAlzaPlus = input(false);
+  /** Current AlzaPlus+ price; draws the dashed reference line. Omit when there is none. */
+  readonly plusPrice = input<number | null>(null);
+  readonly variant = input<Variant>('watchlist');
+  /** The visually-hidden data table. Off in admin, where a real table sits below. */
+  readonly srTable = input(true);
 
-  private readonly frame = viewChild.required<ElementRef<HTMLElement>>('frame');
-  // Captured as a field: inject() is only legal here, not inside the
-  // afterNextRender callback, which runs outside the injection context.
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly range = signal<Range>('90d');
+  protected readonly hoveredIndex = signal<number | null>(null);
 
-  /** SVG ids must be unique per instance or defs collide across cards. */
-  private readonly uid = PriceChartComponent.nextId++;
-  protected readonly gradientId = `chart-fill-${this.uid}`;
-  protected readonly glowId = `chart-glow-${this.uid}`;
+  protected readonly geo = computed(() => GEO[this.variant()]);
+  protected readonly viewBox = computed(() => `0 0 ${VIEW_W} ${this.geo().height}`);
 
-  protected readonly size = signal({ width: 0, height: 0 });
-  protected readonly hovered = signal<number | null>(null);
-
-  constructor() {
-    // The plot geometry depends on the element's real size, so it can only be
-    // computed once the element exists, and must follow it as it resizes.
-    afterNextRender(() => {
-      const element = this.frame().nativeElement;
-      const observer = new ResizeObserver(([entry]) => {
-        const { width, height } = entry.contentRect;
-        this.size.set({ width: Math.round(width), height: Math.round(height) });
-      });
-
-      observer.observe(element);
-      this.destroyRef.onDestroy(() => observer.disconnect());
-    });
-  }
-
-  /**
-   * Each reading reduced to the price that could actually have been paid at the
-   * time, so the line matches the number on the card instead of tracking a shelf
-   * price nobody pays.
-   */
-  private readonly priced = computed(() =>
+  /** Snapshots reduced to the payable price, oldest first, nulls dropped. */
+  private readonly valid = computed<DataPoint[]>(() =>
     this.history()
-      .map((snapshot) => ({ snapshot, price: payableAt(snapshot, this.hasAlzaPlus()) }))
-      .filter((reading): reading is { snapshot: PriceSnapshot; price: number } => reading.price !== null),
+      .map((s) => ({ t: new Date(s.capturedAt).getTime(), price: payableAt(s, this.hasAlzaPlus()) }))
+      .filter((p): p is DataPoint => p.price !== null)
+      .sort((a, b) => a.t - b.t),
   );
 
-  protected readonly low = computed(() => {
-    const prices = this.priced().map((s) => s.price);
-    return prices.length ? Math.min(...prices) : null;
-  });
+  protected readonly ranges = computed(() => {
+    const keys: Range[] = this.variant() === 'admin' ? ['30d', '90d', 'all'] : ['30d', '90d', '1y', 'all'];
+    const valid = this.valid();
+    const now = Date.now();
+    const span = valid.length > 0 ? valid[valid.length - 1].t - valid[0].t : 0;
 
-  protected readonly high = computed(() => {
-    const prices = this.priced().map((s) => s.price);
-    return prices.length ? Math.max(...prices) : null;
-  });
-
-  protected readonly plotted = computed<Plotted[]>(() => {
-    const snapshots = this.priced();
-    const { width, height } = this.size();
-
-    if (snapshots.length < 2 || width === 0 || height === 0) {
-      return [];
-    }
-
-    const min = this.low()!;
-    const max = this.high()!;
-    const span = max - min;
-
-    const times = snapshots.map((s) => new Date(s.snapshot.capturedAt).getTime());
-    const firstTime = times[0];
-    const timeSpan = times[times.length - 1] - firstTime;
-
-    // Inset so the stroke, its glow and the end dots are never clipped.
-    const padX = 6;
-    const padY = 10;
-    const plotWidth = Math.max(1, width - padX * 2);
-    const plotHeight = Math.max(1, height - padY * 2);
-
-    return snapshots.map(({ snapshot, price }, index) => ({
-      snapshot,
-      price,
-      // Spaced by when the reading happened, not by its index: snapshots are only
-      // written when the price moves, so the gaps between them are uneven and
-      // evenly spacing them would misrepresent how fast a price actually fell.
-      x: padX + (timeSpan === 0 ? (index / (snapshots.length - 1)) * plotWidth
-                                : ((times[index] - firstTime) / timeSpan) * plotWidth),
-      y: span === 0
-        ? padY + plotHeight / 2
-        : padY + plotHeight - ((price - min) / span) * plotHeight,
+    return keys.map((key) => ({
+      key,
+      label: key === 'all' ? 'ALL' : key === '1y' ? '1 Y' : key === '90d' ? '90 D' : '30 D',
+      // A preset earns its place only if the history reaches past its window.
+      enabled: key === 'all' || (valid.length > 1 && span > RANGE_MS[key] * 0.95),
     }));
   });
 
-  protected readonly linePath = computed(() => monotoneCubicPath(this.plotted()));
-
-  /** The curve closed down to the baseline, for the tinted fill underneath it. */
-  protected readonly areaPath = computed(() => {
-    const points = this.plotted();
-    const line = this.linePath();
-
-    if (points.length < 2 || !line) {
-      return '';
-    }
-
-    const bottom = this.size().height;
-    const first = points[0];
-    const last = points[points.length - 1];
-
-    return `${line} L${last.x.toFixed(2)},${bottom} L${first.x.toFixed(2)},${bottom} Z`;
+  protected readonly activeRange = computed(() => {
+    const wanted = this.range();
+    return this.ranges().find((r) => r.key === wanted)?.enabled ? wanted : 'all';
   });
 
-  protected readonly hoveredPoint = computed(() => {
-    const index = this.hovered();
-    return index === null ? null : (this.plotted()[index] ?? null);
+  /** Everything the SVG needs, derived in one pass so the geometry stays consistent. */
+  protected readonly model = computed(() => {
+    const valid = this.valid();
+    const { plotBottom } = this.geo();
+
+    if (valid.length === 0) {
+      return null;
+    }
+
+    const now = Date.now();
+    const range = this.activeRange();
+    const last = valid[valid.length - 1];
+
+    const domainStart =
+      range === 'all' || valid.length === 1
+        ? valid[0].t
+        : Math.max(valid[0].t, now - RANGE_MS[range]);
+    const domainEnd = last.t;
+    const domainSpan = domainEnd - domainStart || 1;
+
+    const windowValid = valid.filter((p) => p.t >= domainStart);
+    const prior = [...valid].reverse().find((p) => p.t < domainStart) ?? null;
+
+    const xOf = (t: number) =>
+      PLOT_LEFT + Math.min(1, Math.max(0, (t - domainStart) / domainSpan)) * (PLOT_RIGHT - PLOT_LEFT);
+
+    // Y scale over what is actually on screen, plus the AlzaPlus+ line if drawn.
+    const plus = this.plusPrice();
+    const priced = [
+      ...windowValid.map((p) => p.price),
+      ...(prior ? [prior.price] : []),
+      ...(plus !== null ? [plus] : []),
+    ];
+    const [yMin, yMax, yStep] = niceScale(
+      Math.min(...priced),
+      Math.max(...priced),
+      this.variant() === 'admin' ? 3 : 5,
+    );
+    const yOf = (price: number) =>
+      plotBottom - ((price - yMin) / (yMax - yMin || 1)) * (plotBottom - PLOT_TOP);
+
+    const place = (p: DataPoint): PlacedPoint => ({ ...p, x: xOf(p.t), y: yOf(p.price) });
+
+    const snapshotPoints = windowValid.map(place);
+    const linePoints = (prior ? [{ t: domainStart, price: prior.price }, ...windowValid] : windowValid).map(
+      place,
+    );
+
+    const gridlines: { y: number; label: string }[] = [];
+    for (let v = yMin; v <= yMax + 1e-6; v += yStep) {
+      gridlines.push({ y: yOf(v), label: Number.isInteger(yStep) ? String(Math.round(v)) : v.toFixed(2) });
+    }
+
+    const lo = Math.min(...windowValid.map((p) => p.price));
+    const hi = Math.max(...windowValid.map((p) => p.price));
+    const lowPoint = snapshotPoints.find((p) => p.price === lo) ?? null;
+    const lowAnchor: 'start' | 'middle' | 'end' = !lowPoint
+      ? 'middle'
+      : lowPoint.x > PLOT_RIGHT - 120
+        ? 'end'
+        : lowPoint.x < PLOT_LEFT + 90
+          ? 'start'
+          : 'middle';
+
+    const gapBefore = !prior && snapshotPoints.length > 0 && snapshotPoints[0].t > domainStart + 864e5;
+
+    // With a gap on the left, the "no data before …" note replaces the first date.
+    const xTicks = buildXTicks(windowValid, xOf);
+
+    return {
+      linePath: steppedPath(linePoints),
+      areaPath: steppedAreaPath(linePoints, plotBottom, linePoints.at(-1)?.x ?? PLOT_LEFT),
+      snapshotPoints,
+      latest: snapshotPoints.at(-1) ?? null,
+      lowPoint,
+      lowAnchor,
+      gridlines,
+      xTicks: gapBefore ? xTicks.slice(1) : xTicks,
+      plusLine: plus !== null ? { y: yOf(plus), label: `AlzaPlus+ ${this.price(plus)}` } : null,
+      gapLabel: gapBefore ? `no data before ${shortDate(snapshotPoints[0].t)}` : null,
+      now: last.price,
+      low: lo,
+      high: hi,
+      median: median(windowValid.map((p) => p.price)),
+      count: windowValid.length,
+    };
   });
 
   protected readonly summary = computed(() => {
-    const points = this.plotted();
-    if (points.length < 2) {
-      return 'Price history';
+    const m = this.model();
+    if (!m) {
+      return 'Price history: no readings yet';
     }
-
-    const first = points[0].price;
-    const last = points[points.length - 1].price;
-    const direction = last < first ? 'down from' : last > first ? 'up from' : 'unchanged from';
-
-    return `Price history: ${points.length} readings, now ${this.price(last)}, ${direction} ${this.price(first)}. Lowest ${this.price(this.low())}, highest ${this.price(this.high())}.`;
+    const dir = m.now < m.high ? 'down from' : m.now > m.low ? 'up from' : 'flat at';
+    return `Price history: ${m.count} readings, now ${this.price(m.now)}, ${dir} a high of ${this.price(
+      m.high,
+    )} and a low of ${this.price(m.low)}.`;
   });
 
-  /** Snaps to the nearest reading rather than interpolating between them. */
+  protected readonly readout = computed(() => {
+    const i = this.hoveredIndex();
+    const points = this.model()?.snapshotPoints ?? [];
+    const p = i === null ? null : points[i];
+    if (!p) {
+      return null;
+    }
+    return {
+      x: p.x,
+      y: p.y,
+      leftPct: (p.x / VIEW_W) * 100,
+      topPct: (p.y / this.geo().height) * 100,
+      flip: p.x > VIEW_W * 0.62,
+      below: p.y < this.geo().height * 0.4,
+      price: this.price(p.price),
+      when: formatExact(new Date(p.t).toISOString()),
+    };
+  });
+
+  protected setRange(range: Range): void {
+    this.range.set(range);
+    this.hoveredIndex.set(null);
+  }
+
   protected track(event: PointerEvent): void {
-    const points = this.plotted();
+    const points = this.model()?.snapshotPoints ?? [];
     if (points.length === 0) {
       return;
     }
 
-    const bounds = (event.currentTarget as SVGElement).getBoundingClientRect();
-    const x = event.clientX - bounds.left;
+    const rect = (event.currentTarget as SVGElement).getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * VIEW_W;
 
     let nearest = 0;
-    let best = Number.POSITIVE_INFINITY;
-
-    for (let i = 0; i < points.length; i++) {
-      const distance = Math.abs(points[i].x - x);
-      if (distance < best) {
-        best = distance;
+    for (let i = 1; i < points.length; i++) {
+      if (Math.abs(points[i].x - x) < Math.abs(points[nearest].x - x)) {
         nearest = i;
       }
     }
+    this.hoveredIndex.set(nearest);
+  }
 
-    this.hovered.set(nearest);
+  protected step(event: KeyboardEvent): void {
+    const points = this.model()?.snapshotPoints ?? [];
+    if (points.length === 0) {
+      return;
+    }
+
+    const current = this.hoveredIndex() ?? points.length - 1;
+    let next: number | null = current;
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        next = Math.max(0, current - 1);
+        break;
+      case 'ArrowRight':
+        next = Math.min(points.length - 1, current + 1);
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = points.length - 1;
+        break;
+      case 'Escape':
+        next = null;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    this.hoveredIndex.set(next);
   }
 
   protected price(value: number | null): string {
     return formatPrice(value, this.currency());
   }
 
-  protected relative(iso: string): string {
-    return formatRelative(iso);
+  protected shortDate(t: number): string {
+    return shortDate(t);
+  }
+}
+
+/** A rounded [min, max, step] covering the data with roughly `intervals` gridlines. */
+function niceScale(dataMin: number, dataMax: number, intervals: number): [number, number, number] {
+  if (!Number.isFinite(dataMin) || !Number.isFinite(dataMax)) {
+    return [0, 1, 1];
+  }
+  if (dataMin === dataMax) {
+    const pad = Math.abs(dataMin) * 0.05 || 1;
+    dataMin -= pad;
+    dataMax += pad;
   }
 
-  protected exact(iso: string): string {
-    return formatExact(iso);
+  const raw = (dataMax - dataMin) / intervals;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const norm = raw / mag;
+  const step = mag * (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10);
+
+  return [Math.floor(dataMin / step) * step, Math.ceil(dataMax / step) * step, step];
+}
+
+/** First date, one or two interior dates, last date — anchored start / middle / end. */
+function buildXTicks(
+  points: readonly DataPoint[],
+  xOf: (t: number) => number,
+): { x: number; label: string; anchor: 'start' | 'middle' | 'end' }[] {
+  if (points.length === 0) {
+    return [];
   }
+
+  const first = points[0].t;
+  const last = points[points.length - 1].t;
+  const ticks: { x: number; label: string; anchor: 'start' | 'middle' | 'end' }[] = [
+    { x: xOf(first), label: shortDate(first), anchor: 'start' },
+  ];
+
+  const interior = last - first > 20 * 864e5 ? 2 : 1;
+  for (let i = 1; i <= interior; i++) {
+    const t = first + ((last - first) * i) / (interior + 1);
+    ticks.push({ x: xOf(t), label: shortDate(t), anchor: 'middle' });
+  }
+
+  if (last !== first) {
+    ticks.push({ x: xOf(last), label: shortDate(last), anchor: 'end' });
+  }
+  return ticks;
+}
+
+function shortDate(t: number): string {
+  return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }

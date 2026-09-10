@@ -16,9 +16,9 @@
     <button type="button" class="primary" (click)="startFresh()">Start over</button>
   </div>
 } @else {
-  <div class="listbar">
+  <div class="list-head">
     @if (renaming()) {
-      <form class="inline" (ngSubmit)="rename()">
+      <form class="rename" (ngSubmit)="rename()">
         <input
           name="renameValue"
           [ngModel]="renameValue()"
@@ -31,9 +31,20 @@
         <button type="button" (click)="cancelRename()">Cancel</button>
       </form>
     } @else {
-      <h1 class="title">▌ {{ listName() }}</h1>
+      <div class="head-main">
+        <h1 class="title">{{ listName() }}</h1>
+        <p class="summary" role="status">
+          <b>{{ watchedCount() }}</b> {{ watchedCount() === 1 ? 'product' : 'products' }}
+          @if (atLowestCount() > 0) {
+            · <span class="good">{{ atLowestCount() }} at their cheapest</span>
+          }
+          @if (unavailableCount() > 0) {
+            · <span class="muted">{{ unavailableCount() }} unavailable</span>
+          }
+        </p>
+      </div>
 
-      <span class="tools">
+      <div class="head-tools">
         <button type="button" class="bare" (click)="startRename()">Rename</button>
         @if (canDelete()) {
           @if (confirmingDelete()) {
@@ -48,7 +59,15 @@
             <button type="button" class="bare" (click)="askDelete()">Delete list</button>
           }
         }
-      </span>
+        <label class="sort">
+          <span class="sr-only">Sort</span>
+          <select [ngModel]="sort()" (ngModelChange)="sort.set($event)" name="sort">
+            @for (option of sortOptions; track option.key) {
+              <option [value]="option.key">Sort: {{ option.label }}</option>
+            }
+          </select>
+        </label>
+      </div>
     }
   </div>
 
@@ -79,31 +98,17 @@
       </p>
     </div>
   } @else {
-    <div class="toolbar">
-      <p class="summary" role="status">
-        <strong>{{ watchedCount() }}</strong>
-        {{ watchedCount() === 1 ? 'product' : 'products' }}
-        @if (atLowestCount() > 0) {
-          · <span class="good">{{ atLowestCount() }} at their cheapest</span>
-        }
-        @if (unavailableCount() > 0) {
-          · <span class="bad">{{ unavailableCount() }} unavailable</span>
-        }
-      </p>
-
-      <label class="sort">
-        <span>Sort</span>
-        <select [ngModel]="sort()" (ngModelChange)="sort.set($event)" name="sort">
-          @for (option of sortOptions; track option.key) {
-            <option [value]="option.key">{{ option.label }}</option>
-          }
-        </select>
-      </label>
-    </div>
-
     @if (canReorder() && items().length > 1) {
-      <p class="reorder-hint">Drag cards to set your own order.</p>
+      <p class="reorder-hint">Drag rows to set your own order.</p>
     }
+
+    <div class="col-head" aria-hidden="true">
+      <span></span>
+      <span>Product</span>
+      <span class="r">Change</span>
+      <span class="r">Price</span>
+      <span class="r">90 days</span>
+    </div>
 
     <ul class="items">
       @for (item of items(); track item.id) {
@@ -121,6 +126,8 @@
             [item]="item"
             [busy]="isBusy(item.id)"
             [note]="noteFor(item.id)"
+            [expanded]="expandedItemId() === item.id"
+            (toggleRequested)="toggleExpand(item.id)"
             (resumeRequested)="resume(item)"
             (removeRequested)="remove(item)"
           />

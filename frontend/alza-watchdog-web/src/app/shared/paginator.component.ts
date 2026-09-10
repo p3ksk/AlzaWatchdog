@@ -11,13 +11,15 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
   template: `
     @if (pageCount() > 1) {
       <nav class="pager" [attr.aria-label]="label()">
-        <button type="button" (click)="go(page() - 1)" [disabled]="page() <= 1">‹ Prev</button>
         <span class="range" aria-live="polite">
           {{ first() }}–{{ last() }} of {{ total() }}
-          <span class="sep">·</span>
-          page {{ page() }}/{{ pageCount() }}
         </span>
-        <button type="button" (click)="go(page() + 1)" [disabled]="page() >= pageCount()">Next ›</button>
+        <span class="controls">
+          <button type="button" (click)="go(page() - 1)" [disabled]="page() <= 1">Prev</button>
+          <button type="button" class="next" (click)="go(page() + 1)" [disabled]="page() >= pageCount()">
+            Next
+          </button>
+        </span>
       </nav>
     }
   `,
