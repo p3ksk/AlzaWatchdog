@@ -16,9 +16,9 @@ services:
       timeout: 5s
       retries: 5
 
-  alzawatchdog-api:
+  watchdog-api:
     restart: unless-stopped
-    container_name: alzawatchdog-api
+    container_name: watchdog-api
     build:
       context: .
       dockerfile: backend/AlzaWatchdog.Api/Dockerfile
@@ -34,8 +34,8 @@ services:
       alzawatchdog-db:
         condition: service_healthy
 
-  alzawatchdog-web:
-    container_name: alzawatchdog-web
+  watchdog-web:
+    container_name: watchdog-web
     restart: unless-stopped
     build:
       context: .
@@ -43,7 +43,7 @@ services:
     ports:
       - "8081:80"
     depends_on:
-      - alzawatchdog-api
+      - watchdog-api
 
 volumes:
   watchdog-mariadb:
