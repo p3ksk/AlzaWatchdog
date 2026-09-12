@@ -149,7 +149,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -194,7 +194,7 @@ select {
   background: var(--panel);
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   min-width: 0;
 
   &::placeholder {
@@ -220,7 +220,7 @@ button {
   background: var(--panel);
   color: var(--ink-mid);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
 
