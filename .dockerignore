@@ -1,0 +1,16 @@
+**/.angular
+**/.dockerignore
+**/.env
+**/.git
+**/.gitignore
+**/.idea
+**/.vscode
+**/bin
+**/dist
+**/node_modules
+**/npm-debug.log
+**/obj
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.user

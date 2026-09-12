@@ -19,7 +19,7 @@ public class MySqlDesignTimeFactory : IDesignTimeDbContextFactory<MySqlAppDbCont
                                ?? "server=localhost;database=alzawatchdog;user=root;password=root";
 
         var options = new DbContextOptionsBuilder<MySqlAppDbContext>()
-            .UseMySQL(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory"))
+            .UseMySql(connectionString, new MariaDbServerVersion(new Version(10, 11, 0)))
             .Options;
 
         return new MySqlAppDbContext(options);

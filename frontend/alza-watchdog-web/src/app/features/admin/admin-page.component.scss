@@ -84,7 +84,8 @@
   gap: 4px;
   margin: 0;
   padding: 0 24px;
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule-mid);
+  background: var(--chrome);
   overflow-x: auto;
   scrollbar-width: none;
 
@@ -183,7 +184,8 @@ section {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 118px 118px 84px;
   gap: 0 16px;
-  padding: 0 24px 6px;
+  padding: 9px 24px;
+  background: var(--band);
 
   span {
     font-family: var(--font-mono);
@@ -287,7 +289,7 @@ section {
     margin-top: 4px;
     font-family: var(--font-mono);
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 600;
     letter-spacing: 0.07em;
     color: var(--accent);
   }
@@ -326,7 +328,7 @@ section {
 .snap-table {
   border: 1px solid var(--rule-strong);
   border-radius: 3px;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .snap-head,
@@ -336,6 +338,7 @@ section {
   gap: 0 12px;
   padding: 9px 14px;
   font-variant-numeric: tabular-nums;
+  min-width: 42rem;
 }
 
 .snap-head {
@@ -432,6 +435,7 @@ section {
   border: 1px solid var(--rule-strong);
   border-radius: 2px;
   font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-dim);
@@ -477,7 +481,8 @@ section {
   dt {
     font-family: var(--font-mono);
     font-size: 11px;
-    letter-spacing: 0.07em;
+    font-weight: 500;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
     color: var(--ink-dim);
   }
@@ -576,7 +581,7 @@ table {
     border-bottom: 1px solid var(--rule-strong);
     font-family: var(--font-mono);
     font-weight: 500;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
     font-size: 11px;
     color: var(--ink-mid);
@@ -612,7 +617,10 @@ code {
   border: 1px solid var(--accent-line);
   border-radius: 2px;
   color: var(--accent);
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
@@ -639,5 +647,50 @@ code {
     max-width: 52ch;
     color: var(--ink-dim);
     font-size: 13px;
+  }
+}
+
+@media (max-width: 760px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stats div {
+    padding: 12px 0 12px 16px;
+  }
+
+  .stats div:nth-child(odd) {
+    padding-left: 24px;
+    border-left: 0;
+  }
+
+  .find {
+    flex-wrap: wrap;
+  }
+
+  .col-head {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 16px;
+    align-items: start;
+  }
+
+  .ident {
+    grid-column: 1 / -1;
+  }
+
+  .cell-price,
+  .cell-best {
+    grid-column: 1;
+    text-align: left;
+  }
+
+  .snaps {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    align-self: center;
   }
 }

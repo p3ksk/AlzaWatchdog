@@ -1,27 +1,49 @@
 services:
-  watchdog-api:
+  alzawatchdog-db:
+    image: docker.io/library/mariadb:10
+    container_name: alzawatchdog-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-rootpw}
+      MARIADB_DATABASE: AlzaWatchdog
+      MARIADB_USER: watchdog
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-watchpw}
+    volumes:
+      - watchdog-mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -uroot -p$$MARIADB_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  alzawatchdog-api:
+    restart: unless-stopped
+    container_name: alzawatchdog-api
     build:
       context: .
       dockerfile: backend/AlzaWatchdog.Api/Dockerfile
     environment:
-      # The web container proxies /api on its own origin, so CORS is not exercised
-      # here. Listed for anyone pointing `ng serve` at a containerised API.
+      Database__Provider: MySql
+      # utf8mb4 matters: product names carry Slovak diacritics.
+      ConnectionStrings__Default: "server=alzawatchdog-db;port=3306;database=AlzaWatchdog;user=watchdog;password=${MARIADB_PASSWORD:-watchpw};CharSet=utf8mb4"
       Cors__Origins__0: http://localhost:4200
       Watchdog__CheckInterval: "06:00:00"
-      Admin__Keys__0: 43fa4fc85fcd400490ad43bb47099005
-    volumes:
-      - watchdog-data:/data
-    restart: unless-stopped
+      #Admin__Keys__0: 5350300f91f54013befcd01ef7d72eb2
+      #Watchdog__LogRequests: "true"
+    depends_on:
+      alzawatchdog-db:
+        condition: service_healthy
 
-  watchdog-web:
+  alzawatchdog-web:
+    container_name: alzawatchdog-web
+    restart: unless-stopped
     build:
       context: .
       dockerfile: frontend/alza-watchdog-web/Dockerfile
     ports:
       - "8081:80"
     depends_on:
-      - watchdog-api
-    restart: unless-stopped
+      - alzawatchdog-api
 
 volumes:
-  watchdog-data:
+  watchdog-mariadb:

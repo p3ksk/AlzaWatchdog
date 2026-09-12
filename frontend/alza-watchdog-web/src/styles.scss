@@ -56,30 +56,32 @@
   src: url('/fonts/ibm-plex-mono-600.woff2') format('woff2');
 }
 
-:root {
-  color-scheme: light dark;
-
-  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
-  --paper: #faf9f7;
-  --panel: #ffffff;
-  --panel-sunken: #f4f2ee;
+/* Light: blue carries the surfaces (ground, nav, tab strip, header band, every
+   rule) while rows stay white, so prices remain the top layer. --ink-dim is
+   tuned to clear 4.5:1 on --panel-sunken, the darkest surface text lands on. */
+@mixin light {
+  --paper: #e8eef8; /* page ground */
+  --chrome: #f4f7fc; /* nav bar and tab strips */
+  --panel: #ffffff; /* rows */
+  --panel-sunken: #dbe4f3; /* sub-table headers */
+  --band: #dde5f4; /* column-header rows */
+  --thumb-placeholder: repeating-linear-gradient(135deg, #d9e2f2 0 5px, #eaf0f9 5px 10px);
 
   --ink: #191817;
   --ink-mid: #57544e;
-  --ink-dim: #6d6a63;
-  --ink-faint: #c7c2b9;
+  --ink-dim: #67645d;
+  --ink-faint: #9fb2d2; /* strokes and disabled borders only — never text */
 
-  --rule: rgb(0 0 0 / 0.09);
-  --rule-soft: rgb(0 0 0 / 0.07);
-  --rule-strong: rgb(0 0 0 / 0.16);
-  --grid: #e4e1da;
+  --rule: rgb(29 79 160 / 0.14);
+  --rule-soft: rgb(29 79 160 / 0.12);
+  --rule-mid: rgb(29 79 160 / 0.18);
+  --rule-strong: rgb(29 79 160 / 0.3);
+  --grid: #ccd8ec;
 
   --accent: #1d4fa0;
   --accent-ink: #ffffff;
   --accent-fill: var(--accent);
-  --accent-wash: rgb(29 79 160 / 0.07);
+  --accent-wash: rgb(29 79 160 / 0.11);
   --accent-line: rgb(29 79 160 / 0.35);
 
   /* Genuine failures only — worker errors, import failures, the access-key warning. */
@@ -88,16 +90,20 @@
 
 @mixin dark {
   --paper: #111317;
+  --chrome: var(--panel);
   --panel: #171a1f;
   --panel-sunken: #1d2126;
+  --band: var(--paper);
+  --thumb-placeholder: var(--panel-sunken);
 
   --ink: #f2f3f5;
   --ink-mid: #c3c7cd;
   --ink-dim: #9aa0a8;
-  --ink-faint: #767c85;
+  --ink-faint: #767c85; /* strokes and disabled borders only — never text */
 
   --rule: rgb(255 255 255 / 0.09);
   --rule-soft: rgb(255 255 255 / 0.06);
+  --rule-mid: var(--rule);
   --rule-strong: rgb(255 255 255 / 0.2);
   --grid: #262a31;
 
@@ -108,6 +114,15 @@
   --accent-line: rgb(91 141 239 / 0.45);
 
   --red: #ff6f61;
+}
+
+:root {
+  color-scheme: light dark;
+
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  @include light;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -122,27 +137,7 @@
 
 :root[data-theme='light'] {
   /* Explicit light choice: restate so it wins over the OS preference. */
-  --paper: #faf9f7;
-  --panel: #ffffff;
-  --panel-sunken: #f4f2ee;
-
-  --ink: #191817;
-  --ink-mid: #57544e;
-  --ink-dim: #6d6a63;
-  --ink-faint: #c7c2b9;
-
-  --rule: rgb(0 0 0 / 0.09);
-  --rule-soft: rgb(0 0 0 / 0.07);
-  --rule-strong: rgb(0 0 0 / 0.16);
-  --grid: #e4e1da;
-
-  --accent: #1d4fa0;
-  --accent-ink: #ffffff;
-  --accent-fill: var(--accent);
-  --accent-wash: rgb(29 79 160 / 0.07);
-  --accent-line: rgb(29 79 160 / 0.35);
-
-  --red: #a52a1e;
+  @include light;
 }
 
 * {
@@ -212,7 +207,8 @@ select {
   }
 
   &:disabled {
-    color: var(--ink-faint);
+    border-color: var(--ink-faint);
+    color: var(--ink-dim);
     cursor: not-allowed;
   }
 }
@@ -234,7 +230,8 @@ button {
   }
 
   &:disabled {
-    color: var(--ink-faint);
+    border-color: var(--ink-faint);
+    color: var(--ink-dim);
     cursor: not-allowed;
   }
 

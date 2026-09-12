@@ -49,7 +49,7 @@ namespace AlzaWatchdog.Api.Data.Migrations.MySql
                 {
                     table.PrimaryKey("PK_Products", x => x.Id);
                 })
-                .Annotation("MySQL:Charset", "utf8mb4");
+                .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.AddColumn<Guid>(
                 name: "ProductId",

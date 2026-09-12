@@ -26,9 +26,10 @@ var connectionString = builder.Configuration.GetConnectionString("Default");
 if (databaseOptions.Provider == DatabaseProvider.MySql)
 {
     builder.Services.AddDbContext<AppDbContext, MySqlAppDbContext>(o =>
-        o.UseMySQL(connectionString
+        o.UseMySql(connectionString
                    ?? throw new InvalidOperationException(
-                       "Database:Provider is MySql but ConnectionStrings:Default is not set.")));
+                       "Database:Provider is MySql but ConnectionStrings:Default is not set."),
+            new MariaDbServerVersion(new Version(10, 11, 0))));
 }
 else
 {

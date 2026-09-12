@@ -15,7 +15,8 @@ public class MySqlProviderTests
 {
     private static MySqlAppDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<MySqlAppDbContext>()
-            .UseMySQL("server=localhost;database=none;user=none;password=none")
+            .UseMySql("server=localhost;database=none;user=none;password=none",
+                new MariaDbServerVersion(new Version(10, 11, 0)))
             .Options);
 
     [Fact]

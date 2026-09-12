@@ -67,6 +67,7 @@
 
 .ranges {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -88,8 +89,8 @@
   }
 
   &:disabled {
-    border-color: var(--rule);
-    color: var(--ink-faint);
+    border-color: var(--ink-faint);
+    color: var(--ink-dim);
   }
 }
 

@@ -96,7 +96,8 @@
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 96px 132px 118px;
   gap: 0 16px;
-  padding: 0 24px 4px;
+  padding: 9px 24px;
+  background: var(--band);
 
   span {
     font-family: var(--font-mono);
@@ -190,4 +191,10 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .col-head {
+    display: none;
+  }
 }
